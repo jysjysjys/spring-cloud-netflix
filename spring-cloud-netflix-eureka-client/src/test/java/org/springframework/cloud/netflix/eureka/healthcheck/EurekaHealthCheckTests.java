@@ -1,11 +1,11 @@
 /*
- * Copyright 2013-2017 the original author or authors.
+ * Copyright 2013-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,8 +16,10 @@
 
 package org.springframework.cloud.netflix.eureka.healthcheck;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import com.netflix.appinfo.InstanceInfo;
+import com.netflix.discovery.EurekaClient;
+import org.junit.jupiter.api.Test;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
@@ -27,50 +29,41 @@ import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.netflix.appinfo.InstanceInfo;
-import com.netflix.discovery.EurekaClient;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Tests the Eureka health check handler.
  *
  * @author Jakub Narloch
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@SpringBootTest(classes = EurekaHealthCheckTests.EurekaHealthCheckApplication.class, webEnvironment = WebEnvironment.RANDOM_PORT, value = {
-		"eureka.client.healthcheck.enabled=true", "debug=true" })
+@SpringBootTest(classes = EurekaHealthCheckTests.EurekaHealthCheckApplication.class,
+		webEnvironment = WebEnvironment.RANDOM_PORT, value = { "eureka.client.healthcheck.enabled=true", "debug=true" })
 @DirtiesContext
-public class EurekaHealthCheckTests {
+class EurekaHealthCheckTests {
 
 	@Autowired
 	private EurekaClient discoveryClient;
 
 	@Test
-	public void shouldRegisterService() {
+	void shouldRegisterService() {
 
 		InstanceInfo.InstanceStatus status = this.discoveryClient.getHealthCheckHandler()
 				.getStatus(InstanceInfo.InstanceStatus.UNKNOWN);
 
-		assertNotNull(status);
-		assertEquals(InstanceInfo.InstanceStatus.OUT_OF_SERVICE, status);
+		assertThat(status).isNotNull();
+		assertThat(status).isEqualTo(InstanceInfo.InstanceStatus.OUT_OF_SERVICE);
 	}
 
-	@Configuration
+	@Configuration(proxyBeanMethods = false)
 	@EnableAutoConfiguration
 	protected static class EurekaHealthCheckApplication {
 
 		@Bean
 		public HealthIndicator healthIndicator() {
-			return new HealthIndicator() {
-				@Override
-				public Health health() {
-					return new Health.Builder().outOfService().build();
-				}
-			};
+			return () -> new Health.Builder().outOfService().build();
 		}
+
 	}
+
 }

@@ -1,11 +1,11 @@
 /*
- * Copyright 2013-2015 the original author or authors.
+ * Copyright 2013-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,12 +23,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import com.netflix.eureka.EurekaServerConfig;
+import com.netflix.eureka.aws.AwsBindingStrategy;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.core.env.PropertyResolver;
-
-import com.netflix.eureka.EurekaServerConfig;
-import com.netflix.eureka.aws.AwsBindingStrategy;
 import org.springframework.core.style.ToStringCreator;
 
 /**
@@ -38,6 +38,9 @@ import org.springframework.core.style.ToStringCreator;
 @ConfigurationProperties(EurekaServerConfigBean.PREFIX)
 public class EurekaServerConfigBean implements EurekaServerConfig {
 
+	/**
+	 * Eureka server configuration properties prefix.
+	 */
 	public static final String PREFIX = "eureka.server";
 
 	private static final int MINUTES = 60 * 1000;
@@ -90,6 +93,7 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 	private long aSGUpdateIntervalMs = 5 * MINUTES;
 
 	private long aSGCacheExpiryTimeoutMs = 10 * MINUTES; // defaults to longer than the
+
 	// asg update interval
 
 	private long responseCacheAutoExpirationInSeconds = 180;
@@ -144,7 +148,7 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 
 	private String[] remoteRegionUrls;
 
-	private Map<String, Set<String>> remoteRegionAppWhitelist;
+	private Map<String, Set<String>> remoteRegionAppWhitelist = new HashMap<>();
 
 	private int remoteRegionRegistryFetchInterval = 30;
 
@@ -190,6 +194,14 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 
 	private int minAvailableInstancesForPeerReplication = -1;
 
+	private int initialCapacityOfResponseCache = 1000;
+
+	private int expectedClientRenewalIntervalSeconds = 30;
+
+	private boolean useAwsAsgApi = true;
+
+	private String myUrl;
+
 	@Override
 	public boolean shouldEnableSelfPreservation() {
 		return this.enableSelfPreservation;
@@ -222,8 +234,7 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 
 	@Override
 	public Set<String> getRemoteRegionAppWhitelist(String regionName) {
-		return this.remoteRegionAppWhitelist
-				.get(regionName == null ? "global" : regionName.trim().toLowerCase());
+		return this.remoteRegionAppWhitelist.get(regionName == null ? "global" : regionName.trim().toLowerCase());
 	}
 
 	@Override
@@ -234,6 +245,15 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 	@Override
 	public boolean shouldBatchReplication() {
 		return this.batchReplication;
+	}
+
+	@Override
+	public String getMyUrl() {
+		return this.myUrl;
+	}
+
+	public void setMyUrl(String myUrl) {
+		this.myUrl = myUrl;
 	}
 
 	@Override
@@ -264,10 +284,18 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 	@Override
 	public String getExperimental(String name) {
 		if (this.propertyResolver != null) {
-			return this.propertyResolver.getProperty(PREFIX + ".experimental." + name,
-					String.class, null);
+			return this.propertyResolver.getProperty(PREFIX + ".experimental." + name, String.class, null);
 		}
 		return null;
+	}
+
+	@Override
+	public int getInitialCapacityOfResponseCache() {
+		return this.initialCapacityOfResponseCache;
+	}
+
+	public void setInitialCapacityOfResponseCache(int initialCapacityOfResponseCache) {
+		this.initialCapacityOfResponseCache = initialCapacityOfResponseCache;
 	}
 
 	@Override
@@ -319,8 +347,7 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 		return eIPBindingRetryIntervalMsWhenUnbound;
 	}
 
-	public void setEIPBindingRetryIntervalMsWhenUnbound(
-			int eIPBindingRetryIntervalMsWhenUnbound) {
+	public void setEIPBindingRetryIntervalMsWhenUnbound(int eIPBindingRetryIntervalMsWhenUnbound) {
 		this.eIPBindingRetryIntervalMsWhenUnbound = eIPBindingRetryIntervalMsWhenUnbound;
 	}
 
@@ -346,8 +373,16 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 		return renewalThresholdUpdateIntervalMs;
 	}
 
-	public void setRenewalThresholdUpdateIntervalMs(
-			int renewalThresholdUpdateIntervalMs) {
+	@Override
+	public int getExpectedClientRenewalIntervalSeconds() {
+		return this.expectedClientRenewalIntervalSeconds;
+	}
+
+	public void setExpectedClientRenewalIntervalSeconds(int expectedClientRenewalIntervalSeconds) {
+		this.expectedClientRenewalIntervalSeconds = expectedClientRenewalIntervalSeconds;
+	}
+
+	public void setRenewalThresholdUpdateIntervalMs(int renewalThresholdUpdateIntervalMs) {
 		this.renewalThresholdUpdateIntervalMs = renewalThresholdUpdateIntervalMs;
 	}
 
@@ -374,8 +409,7 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 		return peerEurekaStatusRefreshTimeIntervalMs;
 	}
 
-	public void setPeerEurekaStatusRefreshTimeIntervalMs(
-			int peerEurekaStatusRefreshTimeIntervalMs) {
+	public void setPeerEurekaStatusRefreshTimeIntervalMs(int peerEurekaStatusRefreshTimeIntervalMs) {
 		this.peerEurekaStatusRefreshTimeIntervalMs = peerEurekaStatusRefreshTimeIntervalMs;
 	}
 
@@ -429,8 +463,7 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 		return peerNodeConnectionIdleTimeoutSeconds;
 	}
 
-	public void setPeerNodeConnectionIdleTimeoutSeconds(
-			int peerNodeConnectionIdleTimeoutSeconds) {
+	public void setPeerNodeConnectionIdleTimeoutSeconds(int peerNodeConnectionIdleTimeoutSeconds) {
 		this.peerNodeConnectionIdleTimeoutSeconds = peerNodeConnectionIdleTimeoutSeconds;
 	}
 
@@ -455,6 +488,15 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 	@Override
 	public long getEvictionIntervalTimerInMs() {
 		return evictionIntervalTimerInMs;
+	}
+
+	@Override
+	public boolean shouldUseAwsAsgApi() {
+		return this.useAwsAsgApi;
+	}
+
+	public void setUseAwsAsgApi(boolean useAwsAsgApi) {
+		this.useAwsAsgApi = useAwsAsgApi;
 	}
 
 	public void setEvictionIntervalTimerInMs(long evictionIntervalTimerInMs) {
@@ -490,8 +532,7 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 		return responseCacheAutoExpirationInSeconds;
 	}
 
-	public void setResponseCacheAutoExpirationInSeconds(
-			long responseCacheAutoExpirationInSeconds) {
+	public void setResponseCacheAutoExpirationInSeconds(long responseCacheAutoExpirationInSeconds) {
 		this.responseCacheAutoExpirationInSeconds = responseCacheAutoExpirationInSeconds;
 	}
 
@@ -525,8 +566,7 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 		return maxIdleThreadInMinutesAgeForStatusReplication;
 	}
 
-	public void setMaxIdleThreadInMinutesAgeForStatusReplication(
-			long maxIdleThreadInMinutesAgeForStatusReplication) {
+	public void setMaxIdleThreadInMinutesAgeForStatusReplication(long maxIdleThreadInMinutesAgeForStatusReplication) {
 		this.maxIdleThreadInMinutesAgeForStatusReplication = maxIdleThreadInMinutesAgeForStatusReplication;
 	}
 
@@ -553,8 +593,7 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 		return maxElementsInStatusReplicationPool;
 	}
 
-	public void setMaxElementsInStatusReplicationPool(
-			int maxElementsInStatusReplicationPool) {
+	public void setMaxElementsInStatusReplicationPool(int maxElementsInStatusReplicationPool) {
 		this.maxElementsInStatusReplicationPool = maxElementsInStatusReplicationPool;
 	}
 
@@ -589,8 +628,7 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 		return maxElementsInPeerReplicationPool;
 	}
 
-	public void setMaxElementsInPeerReplicationPool(
-			int maxElementsInPeerReplicationPool) {
+	public void setMaxElementsInPeerReplicationPool(int maxElementsInPeerReplicationPool) {
 		this.maxElementsInPeerReplicationPool = maxElementsInPeerReplicationPool;
 	}
 
@@ -599,8 +637,7 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 		return maxIdleThreadAgeInMinutesForPeerReplication;
 	}
 
-	public void setMaxIdleThreadAgeInMinutesForPeerReplication(
-			long maxIdleThreadAgeInMinutesForPeerReplication) {
+	public void setMaxIdleThreadAgeInMinutesForPeerReplication(long maxIdleThreadAgeInMinutesForPeerReplication) {
 		this.maxIdleThreadAgeInMinutesForPeerReplication = maxIdleThreadAgeInMinutesForPeerReplication;
 	}
 
@@ -679,8 +716,7 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 		return remoteRegionTotalConnectionsPerHost;
 	}
 
-	public void setRemoteRegionTotalConnectionsPerHost(
-			int remoteRegionTotalConnectionsPerHost) {
+	public void setRemoteRegionTotalConnectionsPerHost(int remoteRegionTotalConnectionsPerHost) {
 		this.remoteRegionTotalConnectionsPerHost = remoteRegionTotalConnectionsPerHost;
 	}
 
@@ -689,8 +725,7 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 		return remoteRegionConnectionIdleTimeoutSeconds;
 	}
 
-	public void setRemoteRegionConnectionIdleTimeoutSeconds(
-			int remoteRegionConnectionIdleTimeoutSeconds) {
+	public void setRemoteRegionConnectionIdleTimeoutSeconds(int remoteRegionConnectionIdleTimeoutSeconds) {
 		this.remoteRegionConnectionIdleTimeoutSeconds = remoteRegionConnectionIdleTimeoutSeconds;
 	}
 
@@ -707,8 +742,7 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 		return remoteRegionUrlsWithName;
 	}
 
-	public void setRemoteRegionUrlsWithName(
-			Map<String, String> remoteRegionUrlsWithName) {
+	public void setRemoteRegionUrlsWithName(Map<String, String> remoteRegionUrlsWithName) {
 		this.remoteRegionUrlsWithName = remoteRegionUrlsWithName;
 	}
 
@@ -725,8 +759,7 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 		return remoteRegionAppWhitelist;
 	}
 
-	public void setRemoteRegionAppWhitelist(
-			Map<String, Set<String>> remoteRegionAppWhitelist) {
+	public void setRemoteRegionAppWhitelist(Map<String, Set<String>> remoteRegionAppWhitelist) {
 		this.remoteRegionAppWhitelist = remoteRegionAppWhitelist;
 	}
 
@@ -735,8 +768,7 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 		return remoteRegionRegistryFetchInterval;
 	}
 
-	public void setRemoteRegionRegistryFetchInterval(
-			int remoteRegionRegistryFetchInterval) {
+	public void setRemoteRegionRegistryFetchInterval(int remoteRegionRegistryFetchInterval) {
 		this.remoteRegionRegistryFetchInterval = remoteRegionRegistryFetchInterval;
 	}
 
@@ -771,8 +803,7 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 		return disableTransparentFallbackToOtherRegion;
 	}
 
-	public void setDisableTransparentFallbackToOtherRegion(
-			boolean disableTransparentFallbackToOtherRegion) {
+	public void setDisableTransparentFallbackToOtherRegion(boolean disableTransparentFallbackToOtherRegion) {
 		this.disableTransparentFallbackToOtherRegion = disableTransparentFallbackToOtherRegion;
 	}
 
@@ -798,8 +829,7 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 		return rateLimiterThrottleStandardClients;
 	}
 
-	public void setRateLimiterThrottleStandardClients(
-			boolean rateLimiterThrottleStandardClients) {
+	public void setRateLimiterThrottleStandardClients(boolean rateLimiterThrottleStandardClients) {
 		this.rateLimiterThrottleStandardClients = rateLimiterThrottleStandardClients;
 	}
 
@@ -808,8 +838,7 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 		return rateLimiterPrivilegedClients;
 	}
 
-	public void setRateLimiterPrivilegedClients(
-			Set<String> rateLimiterPrivilegedClients) {
+	public void setRateLimiterPrivilegedClients(Set<String> rateLimiterPrivilegedClients) {
 		this.rateLimiterPrivilegedClients = rateLimiterPrivilegedClients;
 	}
 
@@ -827,8 +856,7 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 		return rateLimiterRegistryFetchAverageRate;
 	}
 
-	public void setRateLimiterRegistryFetchAverageRate(
-			int rateLimiterRegistryFetchAverageRate) {
+	public void setRateLimiterRegistryFetchAverageRate(int rateLimiterRegistryFetchAverageRate) {
 		this.rateLimiterRegistryFetchAverageRate = rateLimiterRegistryFetchAverageRate;
 	}
 
@@ -862,8 +890,7 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 		return enableReplicatedRequestCompression;
 	}
 
-	public void setEnableReplicatedRequestCompression(
-			boolean enableReplicatedRequestCompression) {
+	public void setEnableReplicatedRequestCompression(boolean enableReplicatedRequestCompression) {
 		this.enableReplicatedRequestCompression = enableReplicatedRequestCompression;
 	}
 
@@ -915,140 +942,127 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 		return minAvailableInstancesForPeerReplication;
 	}
 
-	public void setMinAvailableInstancesForPeerReplication(
-			int minAvailableInstancesForPeerReplication) {
+	public void setMinAvailableInstancesForPeerReplication(int minAvailableInstancesForPeerReplication) {
 		this.minAvailableInstancesForPeerReplication = minAvailableInstancesForPeerReplication;
 	}
 
-	@Override public boolean equals(Object o) {
-		if (this == o) return true;
-		if (o == null || getClass() != o.getClass()) return false;
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) {
+			return true;
+		}
+		if (o == null || getClass() != o.getClass()) {
+			return false;
+		}
 		EurekaServerConfigBean that = (EurekaServerConfigBean) o;
-		return aSGCacheExpiryTimeoutMs == that.aSGCacheExpiryTimeoutMs &&
-				aSGQueryTimeoutMs == that.aSGQueryTimeoutMs &&
-				aSGUpdateIntervalMs == that.aSGUpdateIntervalMs &&
-				Objects.equals(aWSAccessId, that.aWSAccessId) &&
-				Objects.equals(aWSSecretKey, that.aWSSecretKey) &&
-				batchReplication == that.batchReplication &&
-				bindingStrategy == that.bindingStrategy &&
-				deltaRetentionTimerIntervalInMs == that.deltaRetentionTimerIntervalInMs &&
-				disableDelta == that.disableDelta &&
-				disableDeltaForRemoteRegions == that.disableDeltaForRemoteRegions &&
-				disableTransparentFallbackToOtherRegion == that.disableTransparentFallbackToOtherRegion &&
-				eIPBindingRetryIntervalMs == that.eIPBindingRetryIntervalMs &&
-				eIPBindingRetryIntervalMsWhenUnbound == that.eIPBindingRetryIntervalMsWhenUnbound &&
-				eIPBindRebindRetries == that.eIPBindRebindRetries &&
-				enableReplicatedRequestCompression == that.enableReplicatedRequestCompression &&
-				enableSelfPreservation == that.enableSelfPreservation &&
-				evictionIntervalTimerInMs == that.evictionIntervalTimerInMs &&
-				gZipContentFromRemoteRegion == that.gZipContentFromRemoteRegion &&
-				Objects.equals(jsonCodecName, that.jsonCodecName) &&
-				Objects.equals(listAutoScalingGroupsRoleName, that.listAutoScalingGroupsRoleName) &&
-				logIdentityHeaders == that.logIdentityHeaders &&
-				maxElementsInPeerReplicationPool == that.maxElementsInPeerReplicationPool &&
-				maxElementsInStatusReplicationPool == that.maxElementsInStatusReplicationPool &&
-				maxIdleThreadAgeInMinutesForPeerReplication == that.maxIdleThreadAgeInMinutesForPeerReplication &&
-				maxIdleThreadInMinutesAgeForStatusReplication == that.maxIdleThreadInMinutesAgeForStatusReplication &&
-				maxThreadsForPeerReplication == that.maxThreadsForPeerReplication &&
-				maxThreadsForStatusReplication == that.maxThreadsForStatusReplication &&
-				maxTimeForReplication == that.maxTimeForReplication &&
-				minAvailableInstancesForPeerReplication == that.minAvailableInstancesForPeerReplication &&
-				minThreadsForPeerReplication == that.minThreadsForPeerReplication &&
-				minThreadsForStatusReplication == that.minThreadsForStatusReplication &&
-				numberOfReplicationRetries == that.numberOfReplicationRetries &&
-				peerEurekaNodesUpdateIntervalMs == that.peerEurekaNodesUpdateIntervalMs &&
-				peerEurekaStatusRefreshTimeIntervalMs == that.peerEurekaStatusRefreshTimeIntervalMs &&
-				peerNodeConnectionIdleTimeoutSeconds == that.peerNodeConnectionIdleTimeoutSeconds &&
-				peerNodeConnectTimeoutMs == that.peerNodeConnectTimeoutMs &&
-				peerNodeReadTimeoutMs == that.peerNodeReadTimeoutMs &&
-				peerNodeTotalConnections == that.peerNodeTotalConnections &&
-				peerNodeTotalConnectionsPerHost == that.peerNodeTotalConnectionsPerHost &&
-				primeAwsReplicaConnections == that.primeAwsReplicaConnections &&
-				Objects.equals(propertyResolver, that.propertyResolver) &&
-				rateLimiterBurstSize == that.rateLimiterBurstSize &&
-				rateLimiterEnabled == that.rateLimiterEnabled &&
-				rateLimiterFullFetchAverageRate == that.rateLimiterFullFetchAverageRate &&
-				Objects.equals(rateLimiterPrivilegedClients, that.rateLimiterPrivilegedClients) &&
-				rateLimiterRegistryFetchAverageRate == that.rateLimiterRegistryFetchAverageRate &&
-				rateLimiterThrottleStandardClients == that.rateLimiterThrottleStandardClients &&
-				registrySyncRetries == that.registrySyncRetries &&
-				registrySyncRetryWaitMs == that.registrySyncRetryWaitMs &&
-				Objects.equals(remoteRegionAppWhitelist, that.remoteRegionAppWhitelist) &&
-				remoteRegionConnectionIdleTimeoutSeconds == that.remoteRegionConnectionIdleTimeoutSeconds &&
-				remoteRegionConnectTimeoutMs == that.remoteRegionConnectTimeoutMs &&
-				remoteRegionFetchThreadPoolSize == that.remoteRegionFetchThreadPoolSize &&
-				remoteRegionReadTimeoutMs == that.remoteRegionReadTimeoutMs &&
-				remoteRegionRegistryFetchInterval == that.remoteRegionRegistryFetchInterval &&
-				remoteRegionTotalConnections == that.remoteRegionTotalConnections &&
-				remoteRegionTotalConnectionsPerHost == that.remoteRegionTotalConnectionsPerHost &&
-				Objects.equals(remoteRegionTrustStore, that.remoteRegionTrustStore) &&
-				Objects.equals(remoteRegionTrustStorePassword, that.remoteRegionTrustStorePassword) &&
-				Arrays.equals(remoteRegionUrls, that.remoteRegionUrls) &&
-				Objects.equals(remoteRegionUrlsWithName, that.remoteRegionUrlsWithName) &&
-				Double.compare(that.renewalPercentThreshold, renewalPercentThreshold) == 0 &&
-				renewalThresholdUpdateIntervalMs == that.renewalThresholdUpdateIntervalMs &&
-				responseCacheAutoExpirationInSeconds == that.responseCacheAutoExpirationInSeconds &&
-				responseCacheUpdateIntervalMs == that.responseCacheUpdateIntervalMs &&
-				retentionTimeInMSInDeltaQueue == that.retentionTimeInMSInDeltaQueue &&
-				route53BindingRetryIntervalMs == that.route53BindingRetryIntervalMs &&
-				route53BindRebindRetries == that.route53BindRebindRetries &&
-				route53DomainTTL == that.route53DomainTTL &&
-				syncWhenTimestampDiffers == that.syncWhenTimestampDiffers &&
-				useReadOnlyResponseCache == that.useReadOnlyResponseCache &&
-				waitTimeInMsWhenSyncEmpty == that.waitTimeInMsWhenSyncEmpty &&
-				Objects.equals(xmlCodecName, that.xmlCodecName);
+		return aSGCacheExpiryTimeoutMs == that.aSGCacheExpiryTimeoutMs && aSGQueryTimeoutMs == that.aSGQueryTimeoutMs
+				&& aSGUpdateIntervalMs == that.aSGUpdateIntervalMs && Objects.equals(aWSAccessId, that.aWSAccessId)
+				&& Objects.equals(aWSSecretKey, that.aWSSecretKey) && batchReplication == that.batchReplication
+				&& bindingStrategy == that.bindingStrategy
+				&& deltaRetentionTimerIntervalInMs == that.deltaRetentionTimerIntervalInMs
+				&& disableDelta == that.disableDelta
+				&& disableDeltaForRemoteRegions == that.disableDeltaForRemoteRegions
+				&& disableTransparentFallbackToOtherRegion == that.disableTransparentFallbackToOtherRegion
+				&& eIPBindingRetryIntervalMs == that.eIPBindingRetryIntervalMs
+				&& eIPBindingRetryIntervalMsWhenUnbound == that.eIPBindingRetryIntervalMsWhenUnbound
+				&& eIPBindRebindRetries == that.eIPBindRebindRetries
+				&& enableReplicatedRequestCompression == that.enableReplicatedRequestCompression
+				&& enableSelfPreservation == that.enableSelfPreservation
+				&& evictionIntervalTimerInMs == that.evictionIntervalTimerInMs
+				&& gZipContentFromRemoteRegion == that.gZipContentFromRemoteRegion
+				&& Objects.equals(jsonCodecName, that.jsonCodecName)
+				&& Objects.equals(listAutoScalingGroupsRoleName, that.listAutoScalingGroupsRoleName)
+				&& logIdentityHeaders == that.logIdentityHeaders
+				&& maxElementsInPeerReplicationPool == that.maxElementsInPeerReplicationPool
+				&& maxElementsInStatusReplicationPool == that.maxElementsInStatusReplicationPool
+				&& maxIdleThreadAgeInMinutesForPeerReplication == that.maxIdleThreadAgeInMinutesForPeerReplication
+				&& maxIdleThreadInMinutesAgeForStatusReplication == that.maxIdleThreadInMinutesAgeForStatusReplication
+				&& maxThreadsForPeerReplication == that.maxThreadsForPeerReplication
+				&& maxThreadsForStatusReplication == that.maxThreadsForStatusReplication
+				&& maxTimeForReplication == that.maxTimeForReplication
+				&& minAvailableInstancesForPeerReplication == that.minAvailableInstancesForPeerReplication
+				&& minThreadsForPeerReplication == that.minThreadsForPeerReplication
+				&& minThreadsForStatusReplication == that.minThreadsForStatusReplication
+				&& numberOfReplicationRetries == that.numberOfReplicationRetries
+				&& peerEurekaNodesUpdateIntervalMs == that.peerEurekaNodesUpdateIntervalMs
+				&& peerEurekaStatusRefreshTimeIntervalMs == that.peerEurekaStatusRefreshTimeIntervalMs
+				&& peerNodeConnectionIdleTimeoutSeconds == that.peerNodeConnectionIdleTimeoutSeconds
+				&& peerNodeConnectTimeoutMs == that.peerNodeConnectTimeoutMs
+				&& peerNodeReadTimeoutMs == that.peerNodeReadTimeoutMs
+				&& peerNodeTotalConnections == that.peerNodeTotalConnections
+				&& peerNodeTotalConnectionsPerHost == that.peerNodeTotalConnectionsPerHost
+				&& primeAwsReplicaConnections == that.primeAwsReplicaConnections
+				&& Objects.equals(propertyResolver, that.propertyResolver)
+				&& rateLimiterBurstSize == that.rateLimiterBurstSize && rateLimiterEnabled == that.rateLimiterEnabled
+				&& rateLimiterFullFetchAverageRate == that.rateLimiterFullFetchAverageRate
+				&& Objects.equals(rateLimiterPrivilegedClients, that.rateLimiterPrivilegedClients)
+				&& rateLimiterRegistryFetchAverageRate == that.rateLimiterRegistryFetchAverageRate
+				&& rateLimiterThrottleStandardClients == that.rateLimiterThrottleStandardClients
+				&& registrySyncRetries == that.registrySyncRetries
+				&& registrySyncRetryWaitMs == that.registrySyncRetryWaitMs
+				&& Objects.equals(remoteRegionAppWhitelist, that.remoteRegionAppWhitelist)
+				&& remoteRegionConnectionIdleTimeoutSeconds == that.remoteRegionConnectionIdleTimeoutSeconds
+				&& remoteRegionConnectTimeoutMs == that.remoteRegionConnectTimeoutMs
+				&& remoteRegionFetchThreadPoolSize == that.remoteRegionFetchThreadPoolSize
+				&& remoteRegionReadTimeoutMs == that.remoteRegionReadTimeoutMs
+				&& remoteRegionRegistryFetchInterval == that.remoteRegionRegistryFetchInterval
+				&& remoteRegionTotalConnections == that.remoteRegionTotalConnections
+				&& remoteRegionTotalConnectionsPerHost == that.remoteRegionTotalConnectionsPerHost
+				&& Objects.equals(remoteRegionTrustStore, that.remoteRegionTrustStore)
+				&& Objects.equals(remoteRegionTrustStorePassword, that.remoteRegionTrustStorePassword)
+				&& Arrays.equals(remoteRegionUrls, that.remoteRegionUrls)
+				&& Objects.equals(remoteRegionUrlsWithName, that.remoteRegionUrlsWithName)
+				&& Double.compare(that.renewalPercentThreshold, renewalPercentThreshold) == 0
+				&& renewalThresholdUpdateIntervalMs == that.renewalThresholdUpdateIntervalMs
+				&& responseCacheAutoExpirationInSeconds == that.responseCacheAutoExpirationInSeconds
+				&& responseCacheUpdateIntervalMs == that.responseCacheUpdateIntervalMs
+				&& retentionTimeInMSInDeltaQueue == that.retentionTimeInMSInDeltaQueue
+				&& route53BindingRetryIntervalMs == that.route53BindingRetryIntervalMs
+				&& route53BindRebindRetries == that.route53BindRebindRetries
+				&& route53DomainTTL == that.route53DomainTTL
+				&& syncWhenTimestampDiffers == that.syncWhenTimestampDiffers
+				&& useReadOnlyResponseCache == that.useReadOnlyResponseCache
+				&& waitTimeInMsWhenSyncEmpty == that.waitTimeInMsWhenSyncEmpty
+				&& Objects.equals(xmlCodecName, that.xmlCodecName)
+				&& initialCapacityOfResponseCache == that.initialCapacityOfResponseCache
+				&& expectedClientRenewalIntervalSeconds == that.expectedClientRenewalIntervalSeconds
+				&& useAwsAsgApi == that.useAwsAsgApi && Objects.equals(myUrl, that.myUrl);
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(aSGCacheExpiryTimeoutMs, aSGQueryTimeoutMs,
-						aSGUpdateIntervalMs, aWSAccessId, aWSSecretKey, batchReplication,
-						bindingStrategy, deltaRetentionTimerIntervalInMs, disableDelta,
-						disableDeltaForRemoteRegions,
-						disableTransparentFallbackToOtherRegion, eIPBindRebindRetries,
-						eIPBindingRetryIntervalMs, eIPBindingRetryIntervalMsWhenUnbound,
-						enableReplicatedRequestCompression, enableSelfPreservation,
-						evictionIntervalTimerInMs, gZipContentFromRemoteRegion,
-						jsonCodecName, listAutoScalingGroupsRoleName, logIdentityHeaders,
-						maxElementsInPeerReplicationPool, maxElementsInStatusReplicationPool,
-						maxIdleThreadAgeInMinutesForPeerReplication,
-						maxIdleThreadInMinutesAgeForStatusReplication,
-						maxThreadsForPeerReplication, maxThreadsForStatusReplication,
-						maxTimeForReplication, minAvailableInstancesForPeerReplication,
-						minThreadsForPeerReplication, minThreadsForStatusReplication,
-						numberOfReplicationRetries, peerEurekaNodesUpdateIntervalMs,
-						peerEurekaStatusRefreshTimeIntervalMs, peerNodeConnectTimeoutMs,
-						peerNodeConnectionIdleTimeoutSeconds, peerNodeReadTimeoutMs,
-						peerNodeTotalConnections, peerNodeTotalConnectionsPerHost,
-						primeAwsReplicaConnections, propertyResolver, rateLimiterBurstSize,
-						rateLimiterEnabled, rateLimiterFullFetchAverageRate,
-						rateLimiterPrivilegedClients, rateLimiterRegistryFetchAverageRate,
-						rateLimiterThrottleStandardClients, registrySyncRetries,
-						registrySyncRetryWaitMs, remoteRegionAppWhitelist,
-						remoteRegionConnectTimeoutMs,
-						remoteRegionConnectionIdleTimeoutSeconds,
-						remoteRegionFetchThreadPoolSize, remoteRegionReadTimeoutMs,
-						remoteRegionRegistryFetchInterval, remoteRegionTotalConnections,
-						remoteRegionTotalConnectionsPerHost, remoteRegionTrustStore,
-						remoteRegionTrustStorePassword, remoteRegionUrls,
-						remoteRegionUrlsWithName, renewalPercentThreshold,
-						renewalThresholdUpdateIntervalMs,
-						responseCacheAutoExpirationInSeconds,
-						responseCacheUpdateIntervalMs, retentionTimeInMSInDeltaQueue,
-						route53BindRebindRetries, route53BindingRetryIntervalMs,
-						route53DomainTTL, syncWhenTimestampDiffers,
-						useReadOnlyResponseCache, waitTimeInMsWhenSyncEmpty, xmlCodecName);
+		return Objects.hash(aSGCacheExpiryTimeoutMs, aSGQueryTimeoutMs, aSGUpdateIntervalMs, aWSAccessId, aWSSecretKey,
+				batchReplication, bindingStrategy, deltaRetentionTimerIntervalInMs, disableDelta,
+				disableDeltaForRemoteRegions, disableTransparentFallbackToOtherRegion, eIPBindRebindRetries,
+				eIPBindingRetryIntervalMs, eIPBindingRetryIntervalMsWhenUnbound, enableReplicatedRequestCompression,
+				enableSelfPreservation, evictionIntervalTimerInMs, gZipContentFromRemoteRegion, jsonCodecName,
+				listAutoScalingGroupsRoleName, logIdentityHeaders, maxElementsInPeerReplicationPool,
+				maxElementsInStatusReplicationPool, maxIdleThreadAgeInMinutesForPeerReplication,
+				maxIdleThreadInMinutesAgeForStatusReplication, maxThreadsForPeerReplication,
+				maxThreadsForStatusReplication, maxTimeForReplication, minAvailableInstancesForPeerReplication,
+				minThreadsForPeerReplication, minThreadsForStatusReplication, numberOfReplicationRetries,
+				peerEurekaNodesUpdateIntervalMs, peerEurekaStatusRefreshTimeIntervalMs, peerNodeConnectTimeoutMs,
+				peerNodeConnectionIdleTimeoutSeconds, peerNodeReadTimeoutMs, peerNodeTotalConnections,
+				peerNodeTotalConnectionsPerHost, primeAwsReplicaConnections, propertyResolver, rateLimiterBurstSize,
+				rateLimiterEnabled, rateLimiterFullFetchAverageRate, rateLimiterPrivilegedClients,
+				rateLimiterRegistryFetchAverageRate, rateLimiterThrottleStandardClients, registrySyncRetries,
+				registrySyncRetryWaitMs, remoteRegionAppWhitelist, remoteRegionConnectTimeoutMs,
+				remoteRegionConnectionIdleTimeoutSeconds, remoteRegionFetchThreadPoolSize, remoteRegionReadTimeoutMs,
+				remoteRegionRegistryFetchInterval, remoteRegionTotalConnections, remoteRegionTotalConnectionsPerHost,
+				remoteRegionTrustStore, remoteRegionTrustStorePassword, remoteRegionUrls, remoteRegionUrlsWithName,
+				renewalPercentThreshold, renewalThresholdUpdateIntervalMs, responseCacheAutoExpirationInSeconds,
+				responseCacheUpdateIntervalMs, retentionTimeInMSInDeltaQueue, route53BindRebindRetries,
+				route53BindingRetryIntervalMs, route53DomainTTL, syncWhenTimestampDiffers, useReadOnlyResponseCache,
+				waitTimeInMsWhenSyncEmpty, xmlCodecName, initialCapacityOfResponseCache,
+				expectedClientRenewalIntervalSeconds, useAwsAsgApi, myUrl);
 	}
 
 	@Override
 	public String toString() {
-		return new ToStringCreator(this)
-				.append("aSGCacheExpiryTimeoutMs", this.aSGCacheExpiryTimeoutMs)
+		return new ToStringCreator(this).append("aSGCacheExpiryTimeoutMs", this.aSGCacheExpiryTimeoutMs)
 				.append("aSGQueryTimeoutMs", this.aSGQueryTimeoutMs)
-				.append("aSGUpdateIntervalMs", this.aSGUpdateIntervalMs)
-				.append("aWSAccessId", this.aWSAccessId)
-				.append("aWSSecretKey", this.aWSSecretKey)
-				.append("batchReplication", this.batchReplication)
+				.append("aSGUpdateIntervalMs", this.aSGUpdateIntervalMs).append("aWSAccessId", this.aWSAccessId)
+				.append("aWSSecretKey", this.aWSSecretKey).append("batchReplication", this.batchReplication)
 				.append("bindingStrategy", this.bindingStrategy)
 				.append("deltaRetentionTimerIntervalInMs", this.deltaRetentionTimerIntervalInMs)
 				.append("disableDelta", this.disableDelta)
@@ -1067,7 +1081,8 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 				.append("maxElementsInPeerReplicationPool", this.maxElementsInPeerReplicationPool)
 				.append("maxElementsInStatusReplicationPool", this.maxElementsInStatusReplicationPool)
 				.append("maxIdleThreadAgeInMinutesForPeerReplication", this.maxIdleThreadAgeInMinutesForPeerReplication)
-				.append("maxIdleThreadInMinutesAgeForStatusReplication", this.maxIdleThreadInMinutesAgeForStatusReplication)
+				.append("maxIdleThreadInMinutesAgeForStatusReplication",
+						this.maxIdleThreadInMinutesAgeForStatusReplication)
 				.append("maxThreadsForPeerReplication", this.maxThreadsForPeerReplication)
 				.append("maxThreadsForStatusReplication", this.maxThreadsForStatusReplication)
 				.append("maxTimeForReplication", this.maxTimeForReplication)
@@ -1116,7 +1131,9 @@ public class EurekaServerConfigBean implements EurekaServerConfig {
 				.append("useReadOnlyResponseCache", this.useReadOnlyResponseCache)
 				.append("waitTimeInMsWhenSyncEmpty", this.waitTimeInMsWhenSyncEmpty)
 				.append("xmlCodecName", this.xmlCodecName)
-				.toString();
+				.append("initialCapacityOfResponseCache", this.initialCapacityOfResponseCache)
+				.append("expectedClientRenewalIntervalSeconds", this.expectedClientRenewalIntervalSeconds)
+				.append("useAwsAsgApi", this.useAwsAsgApi).append("myUrl", this.myUrl).toString();
 	}
 
 }

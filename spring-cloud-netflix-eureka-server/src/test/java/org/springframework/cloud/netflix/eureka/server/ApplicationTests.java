@@ -1,11 +1,11 @@
 /*
- * Copyright 2013-2015 the original author or authors.
+ * Copyright 2013-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,8 +19,11 @@ package org.springframework.cloud.netflix.eureka.server;
 import java.util.Collections;
 import java.util.Map;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import com.netflix.appinfo.InstanceInfo;
+import com.netflix.discovery.converters.wrappers.CodecWrapper;
+import com.netflix.eureka.resources.ServerCodecs;
+import org.junit.jupiter.api.Test;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.actuate.autoconfigure.endpoint.web.WebEndpointProperties;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -35,25 +38,14 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.context.junit4.SpringRunner;
 
-import com.netflix.appinfo.InstanceInfo;
-import com.netflix.discovery.converters.wrappers.CodecWrapper;
-import com.netflix.eureka.resources.ServerCodecs;
-
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
-@RunWith(SpringRunner.class)
-@SpringBootTest(classes = Application.class, webEnvironment = RANDOM_PORT, properties = {
-		"spring.jmx.enabled=true", "management.security.enabled=false", "management.endpoints.web.exposure.include=*" })
-public class ApplicationTests {
+@SpringBootTest(classes = Application.class, webEnvironment = RANDOM_PORT, properties = { "spring.jmx.enabled=true",
+		"management.security.enabled=false", "management.endpoints.web.exposure.include=*" })
+class ApplicationTests {
+
 	private static final String BASE_PATH = new WebEndpointProperties().getBasePath();
 
 	@LocalServerPort
@@ -63,15 +55,15 @@ public class ApplicationTests {
 	private ServerCodecs serverCodecs;
 
 	@Test
-	public void catalogLoads() {
+	void catalogLoads() {
 		@SuppressWarnings("rawtypes")
-		ResponseEntity<Map> entity = new TestRestTemplate().getForEntity(
-				"http://localhost:" + this.port + "/eureka/apps", Map.class);
-		assertEquals(HttpStatus.OK, entity.getStatusCode());
+		ResponseEntity<Map> entity = new TestRestTemplate()
+				.getForEntity("http://localhost:" + this.port + "/eureka/apps", Map.class);
+		assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.OK);
 	}
 
 	@Test
-	public void adminLoads() {
+	void adminLoads() {
 		HttpHeaders headers = new HttpHeaders();
 		headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
 
@@ -79,49 +71,48 @@ public class ApplicationTests {
 		ResponseEntity<Map> entity = new TestRestTemplate().exchange(
 				"http://localhost:" + this.port + BASE_PATH + "/env", HttpMethod.GET,
 				new HttpEntity<>("parameters", headers), Map.class);
-		assertEquals(HttpStatus.OK, entity.getStatusCode());
+		assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.OK);
 	}
 
 	@Test
-	public void noDoubleSlashes() {
+	void noDoubleSlashes() {
 		String basePath = "http://localhost:" + this.port + "/";
-		ResponseEntity<String> entity = new TestRestTemplate().getForEntity(basePath,
-				String.class);
-		assertEquals(HttpStatus.OK, entity.getStatusCode());
+		ResponseEntity<String> entity = new TestRestTemplate().getForEntity(basePath, String.class);
+		assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.OK);
 		String body = entity.getBody();
-		assertNotNull(body);
-		assertFalse("basePath contains double slashes", body.contains(basePath + "/"));
+		assertThat(body).isNotNull();
+		assertThat(body.contains(basePath + "/")).as("basePath contains double slashes").isFalse();
 	}
 
 	@Test
-	public void cssParsedByLess() {
+	void cssParsedByLess() {
 		String basePath = "http://localhost:" + this.port + "/eureka/css/wro.css";
-		ResponseEntity<String> entity = new TestRestTemplate().getForEntity(basePath,
-				String.class);
-		assertEquals(HttpStatus.OK, entity.getStatusCode());
+		ResponseEntity<String> entity = new TestRestTemplate().getForEntity(basePath, String.class);
+		assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.OK);
 		String body = entity.getBody();
-		assertNotNull(body);
-		assertTrue("css wasn't preprocessed", body.contains("spring-logo"));
+		assertThat(body).isNotNull();
+		assertThat(body.contains("spring-logo")).as("css wasn't preprocessed").isTrue();
 	}
 
 	@Test
-	public void customCodecWorks() throws Exception {
-		assertThat("serverCodecs is wrong type", this.serverCodecs,
-				is(instanceOf(EurekaServerAutoConfiguration.CloudServerCodecs.class)));
+	void customCodecWorks() throws Exception {
+		assertThat(this.serverCodecs).as("serverCodecs is wrong type")
+				.isInstanceOf(EurekaServerAutoConfiguration.CloudServerCodecs.class);
 		CodecWrapper codec = this.serverCodecs.getFullJsonCodec();
-		assertThat("codec is wrong type", codec, is(instanceOf(CloudJacksonJson.class)));
+		assertThat(codec).as("codec is wrong type").isInstanceOf(CloudJacksonJson.class);
 
-		InstanceInfo instanceInfo = InstanceInfo.Builder.newBuilder().setAppName("fooapp")
-				.add("instanceId", "foo").build();
+		InstanceInfo instanceInfo = InstanceInfo.Builder.newBuilder().setAppName("fooapp").add("instanceId", "foo")
+				.build();
 		String encoded = codec.encode(instanceInfo);
 		InstanceInfo decoded = codec.decode(encoded, InstanceInfo.class);
-		assertThat("instanceId was wrong", decoded.getInstanceId(), is("foo"));
+		assertThat(decoded.getInstanceId()).as("instanceId was wrong").isEqualTo("foo");
 	}
 
-	@Configuration
+	@Configuration(proxyBeanMethods = false)
 	@EnableAutoConfiguration
 	@EnableEurekaServer
 	protected static class Application {
+
 	}
 
 }
