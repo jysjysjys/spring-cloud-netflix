@@ -266,7 +266,7 @@ Do not use the `EurekaClient` in a `@PostConstruct` method or in a `@Scheduled` 
 It is initialized in a `SmartLifecycle` (with `phase=0`), so the earliest you can rely on it being available is in another `SmartLifecycle` with a higher phase.
 ====
 
-==== EurekaClient without Jersey
+==== EurekaClient with Jersey
 
 By default, EurekaClient uses Spring's `RestTemplate` for HTTP communication.
 If you wish to use Jersey instead, you need to add the Jersey dependencies to your classpath.
@@ -355,7 +355,7 @@ the ability to refresh Eureka clients.  To do this set `eureka.client.refresh.en
 
 We offer support for the Spring Cloud LoadBalancer `ZonePreferenceServiceInstanceListSupplier`.
 The `zone` value from the Eureka instance metadata (`eureka.instance.metadataMap.zone`) is used for setting the
-value of `spring-clod-loadbalancer-zone` property that is used to filter service instances by zone.
+value of `spring-cloud-loadbalancer-zone` property that is used to filter service instances by zone.
 
 If that is missing and if the `spring.cloud.loadbalancer.eureka.approximateZoneFromHostname` flag is set to `true`,
 it can use the domain name from the server hostname as a proxy for the zone.

@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2020 the original author or authors.
+ * Copyright 2013-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,8 +24,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.servlet.http.HttpServletRequest;
-
 import com.netflix.appinfo.AmazonInfo;
 import com.netflix.appinfo.ApplicationInfoManager;
 import com.netflix.appinfo.DataCenterInfo;
@@ -39,6 +37,7 @@ import com.netflix.eureka.registry.PeerAwareInstanceRegistry;
 import com.netflix.eureka.registry.PeerAwareInstanceRegistryImpl;
 import com.netflix.eureka.resources.StatusResource;
 import com.netflix.eureka.util.StatusInfo;
+import jakarta.servlet.http.HttpServletRequest;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
@@ -120,7 +119,7 @@ public class EurekaController {
 		model.put("datacenter", "N/A"); // FIXME:
 		PeerAwareInstanceRegistry registry = getRegistry();
 		model.put("registry", registry);
-		model.put("isBelowRenewThresold", registry.isBelowRenewThresold() == 1);
+		model.put("isBelowRenewThreshold", registry.isBelowRenewThresold() == 1);
 		DataCenterInfo info = applicationInfoManager.getInfo().getDataCenterInfo();
 		if (info.getName() == DataCenterInfo.Name.Amazon) {
 			AmazonInfo amazonInfo = (AmazonInfo) info;

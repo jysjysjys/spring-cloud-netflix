@@ -5,16 +5,16 @@
 	<parent>
 		<artifactId>spring-cloud-dependencies-parent</artifactId>
 		<groupId>org.springframework.cloud</groupId>
-		<version>3.1.0-SNAPSHOT</version>
+		<version>3.1.0</version>
 		<relativePath/>
 	</parent>
 	<artifactId>spring-cloud-netflix-dependencies</artifactId>
-	<version>3.1.0-SNAPSHOT</version>
+	<version>4.0.0-SNAPSHOT</version>
 	<packaging>pom</packaging>
 	<name>spring-cloud-netflix-dependencies</name>
 	<description>Spring Cloud Netflix Dependencies</description>
 	<properties>
-		<eureka.version>1.10.14</eureka.version>
+		<eureka.version>1.10.17</eureka.version>
 	</properties>
 	<dependencyManagement>
 		<dependencies>
@@ -112,6 +112,7 @@
 					</exclusion>
 				</exclusions>
 			</dependency>
+			<!--			TODO: Move back to Eureka dependency when 1.10.17 released -->
 		</dependencies>
 	</dependencyManagement>
 	<profiles>
