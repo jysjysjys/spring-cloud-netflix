@@ -35,16 +35,17 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -54,12 +55,13 @@ import static com.netflix.appinfo.InstanceInfo.DEFAULT_SECURE_PORT;
 import static org.springframework.util.Assert.isTrue;
 
 /**
- * Mocked Eureka Server
+ * Mocked Eureka Server.
  *
  * @author Daniel Lavoie
  */
 @Configuration(proxyBeanMethods = false)
 @RestController
+@RequestMapping("/eureka")
 @SpringBootApplication
 public class EurekaServerMockApplication {
 
@@ -116,6 +118,11 @@ public class EurekaServerMockApplication {
 		if ("fourOFour".equals(appName)) {
 			return new ResponseEntity(HttpStatus.NOT_FOUND);
 		}
+		if ("fourOFourWithBody".equals(appName)) {
+			return new ResponseEntity(
+					"{ \"error\": \"Not Found\", \"message\": null, \"path\": \"/1\", \"requestId\": \"9e5d3244-1\", \"status\": 404, \"timestamp\": \"2023-03-04T03:31:20.810+00:00\" }",
+					HttpStatus.NOT_FOUND);
+		}
 		return new ResponseEntity<>(new InstanceInfo(null, null, null, null, null, null, null, null, null, null, null,
 				null, null, 0, null, null, null, null, null, null, null, new HashMap<>(), 0L, 0L, null, null),
 				HttpStatus.OK);
@@ -135,7 +142,7 @@ public class EurekaServerMockApplication {
 
 	}
 
-	@GetMapping({ "/apps", "/apps/delta", "/vips/{address}", "/svips/{address}" })
+	@GetMapping({ "/apps/", "/apps/delta", "/vips/{address}", "/svips/{address}" })
 	public Applications getApplications(@PathVariable(required = false) String address,
 			@RequestParam(required = false) String regions) {
 		Applications applications = new Applications();
@@ -155,23 +162,23 @@ public class EurekaServerMockApplication {
 
 	@Configuration(proxyBeanMethods = false)
 	@Order(Ordered.HIGHEST_PRECEDENCE)
-	protected static class TestSecurityConfiguration extends WebSecurityConfigurerAdapter {
+	protected static class TestSecurityConfiguration {
 
-		TestSecurityConfiguration() {
-			super(true);
+		@Bean
+		public InMemoryUserDetailsManager userDetailsService() {
+			UserDetails user = User.withDefaultPasswordEncoder().username("test").password("test").roles("USER")
+					.build();
+			return new InMemoryUserDetailsManager(user);
 		}
 
 		@Bean
-		public UserDetailsService userDetailsService() {
-			InMemoryUserDetailsManager manager = new InMemoryUserDetailsManager();
-			manager.createUser(User.withUsername("test").password("{noop}test").roles("USER").build());
-			return manager;
-		}
-
-		@Override
-		protected void configure(HttpSecurity http) throws Exception {
-			// super.configure(http);
-			http.antMatcher("/apps/**").httpBasic();
+		public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+			// @formatter:off
+			http
+					.securityMatcher("/v2/apps/**")
+					.httpBasic();
+			// @formatter:on
+			return http.build();
 		}
 
 	}

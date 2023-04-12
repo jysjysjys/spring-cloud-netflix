@@ -23,11 +23,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.netflix.appinfo.ApplicationInfoManager;
 import com.netflix.appinfo.HealthCheckHandler;
+import com.netflix.discovery.AbstractDiscoveryClientOptionalArgs;
 import com.netflix.discovery.EurekaClient;
 import com.netflix.discovery.EurekaClientConfig;
-import com.netflix.discovery.shared.transport.jersey.EurekaJerseyClient;
-import com.sun.jersey.client.apache4.ApacheHttpClient4;
+import com.netflix.discovery.shared.transport.jersey.TransportClientFactories;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -74,7 +75,7 @@ import static org.assertj.core.api.AssertionsForClassTypes.fail;
  */
 class EurekaClientAutoConfigurationTests {
 
-	private AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
+	private final AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
 
 	@AfterEach
 	void after() {
@@ -95,7 +96,7 @@ class EurekaClientAutoConfigurationTests {
 	}
 
 	@Test
-	void shouldSetManagementPortInMetadataMapIfEqualToServerPort() throws Exception {
+	void shouldSetManagementPortInMetadataMapIfEqualToServerPort() {
 		TestPropertyValues.of("server.port=8989").applyTo(this.context);
 		setupContext(RefreshAutoConfiguration.class);
 
@@ -105,7 +106,7 @@ class EurekaClientAutoConfigurationTests {
 	}
 
 	@Test
-	void shouldNotSetManagementAndJmxPortsInMetadataMap() throws Exception {
+	void shouldNotSetManagementAndJmxPortsInMetadataMap() {
 		TestPropertyValues.of("server.port=8989", "management.server.port=0").applyTo(this.context);
 		setupContext(RefreshAutoConfiguration.class);
 
@@ -116,7 +117,7 @@ class EurekaClientAutoConfigurationTests {
 	}
 
 	@Test
-	void shouldSetManagementAndJmxPortsInMetadataMap() throws Exception {
+	void shouldSetManagementAndJmxPortsInMetadataMap() {
 		TestPropertyValues.of("management.server.port=9999", "com.sun.management.jmxremote.port=6789")
 				.applyTo(this.context);
 		setupContext(RefreshAutoConfiguration.class);
@@ -127,7 +128,7 @@ class EurekaClientAutoConfigurationTests {
 	}
 
 	@Test
-	void shouldNotResetManagementAndJmxPortsInMetadataMap() throws Exception {
+	void shouldNotResetManagementAndJmxPortsInMetadataMap() {
 		TestPropertyValues.of("management.server.port=9999", "eureka.instance.metadata-map.jmx.port=9898",
 				"eureka.instance.metadata-map.management.port=7878").applyTo(this.context);
 		setupContext(RefreshAutoConfiguration.class);
@@ -202,7 +203,7 @@ class EurekaClientAutoConfigurationTests {
 	}
 
 	@Test
-	void statusPageUrl_and_healthCheckUrl_do_not_contain_server_context_path() throws Exception {
+	void statusPageUrl_and_healthCheckUrl_do_not_contain_server_context_path() {
 		TestPropertyValues.of("server.port=8989", "management.server.port=9999", "server.contextPath=/service")
 				.applyTo(this.context);
 
@@ -215,7 +216,7 @@ class EurekaClientAutoConfigurationTests {
 	}
 
 	@Test
-	void statusPageUrl_and_healthCheckUrl_contain_management_context_path() throws Exception {
+	void statusPageUrl_and_healthCheckUrl_contain_management_context_path() {
 		TestPropertyValues.of("server.port=8989", "management.server.servlet.context-path=/management")
 				.applyTo(this.context);
 
@@ -228,7 +229,7 @@ class EurekaClientAutoConfigurationTests {
 	}
 
 	@Test
-	void statusPageUrl_and_healthCheckUrl_contain_management_context_path_random_port() throws Exception {
+	void statusPageUrl_and_healthCheckUrl_contain_management_context_path_random_port() {
 		TestPropertyValues.of("server.port=0", "management.server.servlet.context-path=/management")
 				.applyTo(this.context);
 
@@ -287,7 +288,7 @@ class EurekaClientAutoConfigurationTests {
 	}
 
 	@Test
-	void statusPageUrl_and_healthCheckUrl_contain_management_base_path() throws Exception {
+	void statusPageUrl_and_healthCheckUrl_contain_management_base_path() {
 		TestPropertyValues.of("server.port=8989", "management.server.base-path=/management").applyTo(this.context);
 
 		setupContext(RefreshAutoConfiguration.class);
@@ -299,7 +300,7 @@ class EurekaClientAutoConfigurationTests {
 	}
 
 	@Test
-	void statusPageUrl_and_healthCheckUrl_contain_management_base_path_random_port() throws Exception {
+	void statusPageUrl_and_healthCheckUrl_contain_management_base_path_random_port() {
 		TestPropertyValues.of("server.port=0", "management.server.base-path=/management").applyTo(this.context);
 
 		setupContext(RefreshAutoConfiguration.class);
@@ -501,17 +502,17 @@ class EurekaClientAutoConfigurationTests {
 	}
 
 	@Test
+	@Disabled
 	void basicAuth() {
 		TestPropertyValues
 				.of("server.port=8989", "eureka.client.serviceUrl.defaultZone=https://user:foo@example.com:80/eureka")
 				.applyTo(this.context);
-		setupContext(MockClientConfiguration.class);
-		// ApacheHttpClient4 http = this.context.getBean(ApacheHttpClient4.class);
+		// FIXME: ApacheHttpClient4 http = this.context.getBean(ApacheHttpClient4.class);
 		// Mockito.verify(http).addFilter(Matchers.any(HTTPBasicAuthFilter.class));
 	}
 
 	@Test
-	void testDefaultAppName() throws Exception {
+	void testDefaultAppName() {
 		setupContext();
 		assertThat(getInstanceConfig().getAppname()).isEqualTo("unknown");
 		assertThat(getInstanceConfig().getVirtualHostName()).isEqualTo("unknown");
@@ -519,7 +520,7 @@ class EurekaClientAutoConfigurationTests {
 	}
 
 	@Test
-	void testAppName() throws Exception {
+	void testAppName() {
 		TestPropertyValues.of("spring.application.name=mytest").applyTo(this.context);
 		setupContext();
 		assertThat(getInstanceConfig().getAppname()).isEqualTo("mytest");
@@ -528,7 +529,7 @@ class EurekaClientAutoConfigurationTests {
 	}
 
 	@Test
-	void testAppNameUpper() throws Exception {
+	void testAppNameUpper() {
 		addSystemEnvironment(this.context.getEnvironment(), "SPRING_APPLICATION_NAME=mytestupper");
 		setupContext();
 		assertThat(getInstanceConfig().getAppname()).isEqualTo("mytestupper");
@@ -570,7 +571,7 @@ class EurekaClientAutoConfigurationTests {
 	}
 
 	@Test
-	void testInstanceNamePreferred() throws Exception {
+	void testInstanceNamePreferred() {
 		addSystemEnvironment(this.context.getEnvironment(), "SPRING_APPLICATION_NAME=mytestspringappname");
 		TestPropertyValues.of("eureka.instance.appname=mytesteurekaappname").applyTo(this.context);
 		setupContext();
@@ -616,6 +617,7 @@ class EurekaClientAutoConfigurationTests {
 				});
 	}
 
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private void assertBeanNotPresent(Class beanClass) {
 		try {
 			context.getBean(beanClass);
@@ -671,8 +673,9 @@ class EurekaClientAutoConfigurationTests {
 		@Bean(destroyMethod = "shutdown")
 		@ConditionalOnMissingBean(value = EurekaClient.class, search = SearchStrategy.CURRENT)
 		public EurekaClient eurekaClient(ApplicationInfoManager manager, EurekaClientConfig config,
-				ApplicationContext context) {
-			return new CloudEurekaClient(manager, config, null, context) {
+				TransportClientFactories<?> transportClientFactories, ApplicationContext context,
+				AbstractDiscoveryClientOptionalArgs optionalArgs) {
+			return new CloudEurekaClient(manager, config, transportClientFactories, optionalArgs, context) {
 				@Override
 				public synchronized void shutdown() {
 					CountDownLatch latch = countDownLatch();
@@ -682,23 +685,6 @@ class EurekaClientAutoConfigurationTests {
 					super.shutdown();
 				}
 			};
-		}
-
-	}
-
-	@Configuration(proxyBeanMethods = false)
-	protected static class MockClientConfiguration {
-
-		@Bean
-		public EurekaJerseyClient jerseyClient() {
-			EurekaJerseyClient mock = Mockito.mock(EurekaJerseyClient.class);
-			Mockito.when(mock.getClient()).thenReturn(apacheClient());
-			return mock;
-		}
-
-		@Bean
-		public ApacheHttpClient4 apacheClient() {
-			return Mockito.mock(ApacheHttpClient4.class);
 		}
 
 	}

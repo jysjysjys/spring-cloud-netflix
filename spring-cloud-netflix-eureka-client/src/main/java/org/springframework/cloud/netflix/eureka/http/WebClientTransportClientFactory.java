@@ -24,7 +24,7 @@ import com.fasterxml.jackson.databind.BeanDescription;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.PropertyNamingStrategy;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.SerializationConfig;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.module.SimpleModule;
@@ -38,6 +38,7 @@ import com.netflix.discovery.shared.Applications;
 import com.netflix.discovery.shared.resolver.EurekaEndpoint;
 import com.netflix.discovery.shared.transport.EurekaHttpClient;
 import com.netflix.discovery.shared.transport.TransportClientFactory;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import org.springframework.http.HttpStatus;
@@ -122,13 +123,13 @@ public class WebClientTransportClientFactory implements TransportClientFactory {
 	 * serialized or deserialized. Achieved with
 	 * {@link SerializationFeature#WRAP_ROOT_VALUE} and
 	 * {@link DeserializationFeature#UNWRAP_ROOT_VALUE}.
-	 * {@link PropertyNamingStrategy.SnakeCaseStrategy} is applied to the underlying
+	 * {@link PropertyNamingStrategies.SnakeCaseStrategy} is applied to the underlying
 	 * {@link ObjectMapper}.
 	 * @return a {@link ObjectMapper} object
 	 */
 	private ObjectMapper objectMapper() {
 		ObjectMapper objectMapper = new ObjectMapper();
-		objectMapper.setPropertyNamingStrategy(PropertyNamingStrategy.SNAKE_CASE);
+		objectMapper.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
 
 		SimpleModule jsonModule = new SimpleModule();
 		jsonModule.setSerializerModifier(createJsonSerializerModifier());
@@ -147,8 +148,14 @@ public class WebClientTransportClientFactory implements TransportClientFactory {
 		return ExchangeFilterFunction.ofResponseProcessor(clientResponse -> {
 			// literally 400 pass the tests, not 4xxClientError
 			if (clientResponse.statusCode().value() == 400) {
-				ClientResponse newResponse = ClientResponse.from(clientResponse).statusCode(HttpStatus.OK).build();
+				ClientResponse newResponse = clientResponse.mutate().statusCode(HttpStatus.OK).build();
 				newResponse.body((clientHttpResponse, context) -> clientHttpResponse.getBody());
+				return Mono.just(newResponse);
+			}
+			if (clientResponse.statusCode().equals(HttpStatus.NOT_FOUND)) {
+				ClientResponse newResponse = clientResponse.mutate().statusCode(clientResponse.statusCode())
+						// ignore body on 404 for heartbeat, see gh-4145
+						.body(Flux.empty()).build();
 				return Mono.just(newResponse);
 			}
 			return Mono.just(clientResponse);

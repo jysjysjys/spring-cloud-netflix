@@ -16,8 +16,6 @@
 
 package org.springframework.cloud.netflix.eureka.server;
 
-import java.util.List;
-
 import com.netflix.appinfo.ApplicationInfoManager;
 import com.netflix.appinfo.InstanceInfo;
 import com.netflix.discovery.EurekaClient;
@@ -27,6 +25,7 @@ import com.netflix.eureka.EurekaServerConfig;
 import com.netflix.eureka.lease.Lease;
 import com.netflix.eureka.registry.PeerAwareInstanceRegistryImpl;
 import com.netflix.eureka.resources.ServerCodecs;
+import com.netflix.eureka.transport.EurekaServerHttpClientFactory;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -47,11 +46,12 @@ public class InstanceRegistry extends PeerAwareInstanceRegistryImpl implements A
 
 	private ApplicationContext ctxt;
 
-	private int defaultOpenForTrafficCount;
+	private final int defaultOpenForTrafficCount;
 
 	public InstanceRegistry(EurekaServerConfig serverConfig, EurekaClientConfig clientConfig, ServerCodecs serverCodecs,
-			EurekaClient eurekaClient, int expectedNumberOfClientsSendingRenews, int defaultOpenForTrafficCount) {
-		super(serverConfig, clientConfig, serverCodecs, eurekaClient);
+			EurekaClient eurekaClient, EurekaServerHttpClientFactory eurekaServerHttpClientFactory,
+			int expectedNumberOfClientsSendingRenews, int defaultOpenForTrafficCount) {
+		super(serverConfig, clientConfig, serverCodecs, eurekaClient, eurekaServerHttpClientFactory);
 
 		this.expectedNumberOfClientsSendingRenews = expectedNumberOfClientsSendingRenews;
 		this.defaultOpenForTrafficCount = defaultOpenForTrafficCount;
@@ -97,18 +97,11 @@ public class InstanceRegistry extends PeerAwareInstanceRegistryImpl implements A
 	@Override
 	public boolean renew(final String appName, final String serverId, boolean isReplication) {
 		log("renew " + appName + " serverId " + serverId + ", isReplication {}" + isReplication);
-		List<Application> applications = getSortedApplications();
-		for (Application input : applications) {
-			if (input.getName().equals(appName)) {
-				InstanceInfo instance = null;
-				for (InstanceInfo info : input.getInstances()) {
-					if (info.getId().equals(serverId)) {
-						instance = info;
-						break;
-					}
-				}
-				publishEvent(new EurekaInstanceRenewedEvent(this, appName, serverId, instance, isReplication));
-				break;
+		Application application = getApplication(appName);
+		if (application != null) {
+			InstanceInfo instanceInfo = application.getByInstanceId(serverId);
+			if (instanceInfo != null) {
+				publishEvent(new EurekaInstanceRenewedEvent(this, appName, serverId, instanceInfo, isReplication));
 			}
 		}
 		return super.renew(appName, serverId, isReplication);

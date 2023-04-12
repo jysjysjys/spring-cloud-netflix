@@ -16,15 +16,16 @@
 
 package org.springframework.cloud.netflix.eureka.server;
 
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.UnknownHostException;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
-
-import javax.ws.rs.Path;
-import javax.ws.rs.core.Application;
-import javax.ws.rs.ext.Provider;
+import java.util.regex.Pattern;
 
 import com.netflix.appinfo.ApplicationInfoManager;
 import com.netflix.discovery.EurekaClient;
@@ -32,25 +33,54 @@ import com.netflix.discovery.EurekaClientConfig;
 import com.netflix.discovery.converters.EurekaJacksonCodec;
 import com.netflix.discovery.converters.wrappers.CodecWrapper;
 import com.netflix.discovery.converters.wrappers.CodecWrappers;
+import com.netflix.discovery.shared.transport.jersey.TransportClientFactories;
+import com.netflix.discovery.shared.transport.jersey3.EurekaIdentityHeaderFilter;
+import com.netflix.discovery.shared.transport.jersey3.EurekaJersey3Client;
+import com.netflix.discovery.shared.transport.jersey3.EurekaJersey3ClientImpl;
+import com.netflix.discovery.shared.transport.jersey3.Jersey3TransportClientFactories;
 import com.netflix.eureka.DefaultEurekaServerContext;
 import com.netflix.eureka.EurekaServerConfig;
 import com.netflix.eureka.EurekaServerContext;
+import com.netflix.eureka.EurekaServerIdentity;
 import com.netflix.eureka.cluster.PeerEurekaNode;
 import com.netflix.eureka.cluster.PeerEurekaNodes;
 import com.netflix.eureka.registry.PeerAwareInstanceRegistry;
 import com.netflix.eureka.resources.DefaultServerCodecs;
 import com.netflix.eureka.resources.ServerCodecs;
-import com.netflix.eureka.transport.JerseyReplicationClient;
-import com.sun.jersey.api.core.DefaultResourceConfig;
-import com.sun.jersey.spi.container.servlet.ServletContainer;
+import com.netflix.eureka.transport.EurekaServerHttpClientFactory;
+import com.netflix.eureka.transport.Jersey3DynamicGZIPContentEncodingFilter;
+import com.netflix.eureka.transport.Jersey3EurekaServerHttpClientFactory;
+import com.netflix.eureka.transport.Jersey3ReplicationClient;
 import jakarta.servlet.Filter;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequestWrapper;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.client.Client;
+import jakarta.ws.rs.client.ClientRequestFilter;
+import jakarta.ws.rs.core.Application;
+import jakarta.ws.rs.ext.Provider;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.glassfish.hk2.api.ServiceLocator;
+import org.glassfish.jersey.server.ResourceConfig;
+import org.glassfish.jersey.server.spi.Container;
+import org.glassfish.jersey.server.spi.ContainerLifecycleListener;
+import org.glassfish.jersey.servlet.ServletContainer;
+import org.glassfish.jersey.servlet.ServletProperties;
+import org.jvnet.hk2.spring.bridge.api.SpringBridge;
+import org.jvnet.hk2.spring.bridge.api.SpringIntoHK2Bridge;
 
+import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.cloud.client.actuator.HasFeatures;
@@ -67,24 +97,35 @@ import org.springframework.core.env.Environment;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.util.ClassUtils;
+import org.springframework.util.StringUtils;
+import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
  * @author Gunnar Hillert
  * @author Biju Kunjummen
  * @author Fahim Farook
+ * @author Weix Sun
  */
 @Configuration(proxyBeanMethods = false)
 @Import(EurekaServerInitializerConfiguration.class)
 @ConditionalOnBean(EurekaServerMarkerConfiguration.Marker.class)
-@EnableConfigurationProperties({ EurekaDashboardProperties.class, InstanceRegistryProperties.class })
+@EnableConfigurationProperties({ EurekaDashboardProperties.class, InstanceRegistryProperties.class,
+		EurekaProperties.class })
 @PropertySource("classpath:/eureka/server.properties")
 public class EurekaServerAutoConfiguration implements WebMvcConfigurer {
+
+	private static final Log log = LogFactory.getLog(EurekaServerAutoConfiguration.class);
 
 	/**
 	 * List of packages containing Jersey resources required by the Eureka server.
 	 */
 	private static final String[] EUREKA_PACKAGES = new String[] { "com.netflix.discovery", "com.netflix.eureka" };
+
+	/**
+	 * Static content pattern for dashboard elements (images, css, etc...).
+	 */
+	private static final String STATIC_CONTENT_PATTERN = "/(fonts|images|css|js)/.*";
 
 	@Autowired
 	private ApplicationInfoManager applicationInfoManager;
@@ -113,8 +154,8 @@ public class EurekaServerAutoConfiguration implements WebMvcConfigurer {
 
 	@Bean
 	@ConditionalOnProperty(prefix = "eureka.dashboard", name = "enabled", matchIfMissing = true)
-	public EurekaController eurekaController() {
-		return new EurekaController(this.applicationInfoManager);
+	public EurekaController eurekaController(EurekaProperties eurekaProperties) {
+		return new EurekaController(this.applicationInfoManager, eurekaProperties);
 	}
 
 	static {
@@ -144,9 +185,23 @@ public class EurekaServerAutoConfiguration implements WebMvcConfigurer {
 	}
 
 	@Bean
-	public PeerAwareInstanceRegistry peerAwareInstanceRegistry(ServerCodecs serverCodecs) {
+	@ConditionalOnMissingBean(TransportClientFactories.class)
+	public Jersey3TransportClientFactories jersey3TransportClientFactories() {
+		return Jersey3TransportClientFactories.getInstance();
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	@Bean
+	public Jersey3EurekaServerHttpClientFactory jersey3EurekaServerHttpClientFactory() {
+		return new Jersey3EurekaServerHttpClientFactory();
+	}
+
+	@Bean
+	public PeerAwareInstanceRegistry peerAwareInstanceRegistry(ServerCodecs serverCodecs,
+			EurekaServerHttpClientFactory eurekaServerHttpClientFactory) {
 		this.eurekaClient.getApplications(); // force initialization
 		return new InstanceRegistry(this.eurekaServerConfig, this.eurekaClientConfig, serverCodecs, this.eurekaClient,
+				eurekaServerHttpClientFactory,
 				this.instanceRegistryProperties.getExpectedNumberOfClientsSendingRenews(),
 				this.instanceRegistryProperties.getDefaultOpenForTrafficCount());
 	}
@@ -179,25 +234,85 @@ public class EurekaServerAutoConfiguration implements WebMvcConfigurer {
 	 * @param eurekaJerseyApp an {@link Application} for the filter to be registered
 	 * @return a jersey {@link FilterRegistrationBean}
 	 */
-	//@Bean
-	//public FilterRegistrationBean<?> jerseyFilterRegistration(javax.ws.rs.core.Application eurekaJerseyApp) {
-	//	FilterRegistrationBean<Filter> bean = new FilterRegistrationBean<Filter>();
-	//	bean.setFilter(new ServletContainer(eurekaJerseyApp));
-	//	bean.setOrder(Ordered.LOWEST_PRECEDENCE);
-	//	bean.setUrlPatterns(Collections.singletonList(EurekaConstants.DEFAULT_PREFIX + "/*"));
-	//
-	//	return bean;
-	//}
+	@Bean
+	public FilterRegistrationBean<?> jerseyFilterRegistration(ResourceConfig eurekaJerseyApp) {
+		FilterRegistrationBean<Filter> bean = new FilterRegistrationBean<>();
+		ServletContainer servletContainer = new ServletContainer(eurekaJerseyApp);
+		bean.setFilter(servletContainer);
+		bean.setOrder(Ordered.LOWEST_PRECEDENCE);
+		bean.setUrlPatterns(Collections.singletonList(EurekaConstants.DEFAULT_PREFIX + "/*"));
+
+		return bean;
+	}
+
+	@Bean
+	public FilterRegistrationBean<?> eurekaVersionFilterRegistration(ServerProperties serverProperties,
+			Environment env) {
+		final String contextPath = serverProperties.getServlet().getContextPath();
+		String regex = EurekaConstants.DEFAULT_PREFIX + STATIC_CONTENT_PATTERN;
+		if (StringUtils.hasText(contextPath)) {
+			regex = contextPath + regex;
+		}
+		String debugResponseHeader = env.getProperty("eureka.server.version.filter.debug.response-header");
+		boolean addDebugResponseHeader = StringUtils.hasText(debugResponseHeader);
+		Pattern staticPattern = Pattern.compile(regex);
+		FilterRegistrationBean<Filter> bean = new FilterRegistrationBean<>();
+		bean.setFilter(new OncePerRequestFilter() {
+			@Override
+			protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
+					FilterChain filterChain) throws ServletException, IOException {
+				HttpServletRequest req = request;
+				String requestURI = request.getRequestURI();
+				if (!requestURI.startsWith(EurekaConstants.DEFAULT_PREFIX + "/v2")
+						// don't forward static requests (images, js, etc...) to /v2
+						&& !staticPattern.matcher(requestURI).matches()) {
+
+					String prefix = EurekaConstants.DEFAULT_PREFIX;
+					if (StringUtils.hasText(contextPath)) {
+						prefix = contextPath + prefix;
+					}
+					String updatedPath = EurekaConstants.DEFAULT_PREFIX + "/v2" + requestURI.substring(prefix.length());
+					if (StringUtils.hasText(contextPath)) {
+						updatedPath = contextPath + updatedPath;
+					}
+					final String computedPath = updatedPath;
+					// only used if a special debug property is set, so in prod this is
+					// always skipped.
+					if (addDebugResponseHeader) {
+						response.addHeader(debugResponseHeader, computedPath);
+					}
+					HttpServletRequestWrapper wrapper = new HttpServletRequestWrapper(request) {
+						@Override
+						public String getRequestURI() {
+							return computedPath;
+						}
+
+						@Override
+						public String getServletPath() {
+							return computedPath;
+						}
+					};
+					req = wrapper;
+				}
+				filterChain.doFilter(req, response);
+			}
+		});
+		bean.setOrder(0);
+		bean.setUrlPatterns(Collections.singletonList(EurekaConstants.DEFAULT_PREFIX + "/*"));
+
+		return bean;
+	}
 
 	/**
-	 * Construct a Jersey {@link javax.ws.rs.core.Application} with all the resources
+	 * Construct a Jersey {@link jakarta.ws.rs.core.Application} with all the resources
 	 * required by the Eureka server.
 	 * @param environment an {@link Environment} instance to retrieve classpath resources
 	 * @param resourceLoader a {@link ResourceLoader} instance to get classloader from
 	 * @return created {@link Application} object
 	 */
 	@Bean
-	public javax.ws.rs.core.Application jerseyApplication(Environment environment, ResourceLoader resourceLoader) {
+	public ResourceConfig jerseyApplication(Environment environment, ResourceLoader resourceLoader,
+			BeanFactory beanFactory) {
 
 		ClassPathScanningCandidateComponentProvider provider = new ClassPathScanningCandidateComponentProvider(false,
 				environment);
@@ -218,15 +333,32 @@ public class EurekaServerAutoConfiguration implements WebMvcConfigurer {
 			}
 		}
 
-		// Construct the Jersey ResourceConfig
-		Map<String, Object> propsAndFeatures = new HashMap<>();
-		propsAndFeatures.put(
-				// Skip static content used by the webapp
-				ServletContainer.PROPERTY_WEB_PAGE_CONTENT_REGEX,
-				EurekaConstants.DEFAULT_PREFIX + "/(fonts|images|css|js)/.*");
+		// https://javaee.github.io/hk2/spring-bridge
 
-		DefaultResourceConfig rc = new DefaultResourceConfig(classes);
-		rc.setPropertiesAndFeatures(propsAndFeatures);
+		// Construct the Jersey ResourceConfig
+		ResourceConfig rc = new ResourceConfig(classes).property(
+				// Skip static content used by the webapp
+				ServletProperties.FILTER_STATIC_CONTENT_REGEX, EurekaConstants.DEFAULT_PREFIX + STATIC_CONTENT_PATTERN);
+
+		rc.register(new ContainerLifecycleListener() {
+			@Override
+			public void onStartup(Container container) {
+				ServiceLocator serviceLocator = container.getApplicationHandler().getInjectionManager()
+						.getInstance(ServiceLocator.class);
+				SpringBridge.getSpringBridge().initializeSpringBridge(serviceLocator);
+				serviceLocator.getService(SpringIntoHK2Bridge.class).bridgeSpringBeanFactory(beanFactory);
+			}
+
+			@Override
+			public void onReload(Container container) {
+
+			}
+
+			@Override
+			public void onShutdown(Container container) {
+
+			}
+		});
 
 		return rc;
 	}
@@ -234,7 +366,7 @@ public class EurekaServerAutoConfiguration implements WebMvcConfigurer {
 	@Bean
 	@ConditionalOnBean(name = "httpTraceFilter")
 	public FilterRegistrationBean<?> traceFilterRegistration(@Qualifier("httpTraceFilter") Filter filter) {
-		FilterRegistrationBean<Filter> bean = new FilterRegistrationBean<Filter>();
+		FilterRegistrationBean<Filter> bean = new FilterRegistrationBean<>();
 		bean.setFilter(filter);
 		bean.setOrder(Ordered.LOWEST_PRECEDENCE - 10);
 		return bean;
@@ -271,7 +403,7 @@ public class EurekaServerAutoConfiguration implements WebMvcConfigurer {
 	static class RefreshablePeerEurekaNodes extends PeerEurekaNodes
 			implements ApplicationListener<EnvironmentChangeEvent> {
 
-		private ReplicationClientAdditionalFilters replicationClientAdditionalFilters;
+		/* for testing */ ReplicationClientAdditionalFilters replicationClientAdditionalFilters;
 
 		RefreshablePeerEurekaNodes(final PeerAwareInstanceRegistry registry, final EurekaServerConfig serverConfig,
 				final EurekaClientConfig clientConfig, final ServerCodecs serverCodecs,
@@ -283,16 +415,72 @@ public class EurekaServerAutoConfiguration implements WebMvcConfigurer {
 
 		@Override
 		protected PeerEurekaNode createPeerEurekaNode(String peerEurekaNodeUrl) {
-			JerseyReplicationClient replicationClient = JerseyReplicationClient.createReplicationClient(serverConfig,
-					serverCodecs, peerEurekaNodeUrl);
-
-			this.replicationClientAdditionalFilters.getFilters().forEach(replicationClient::addReplicationClientFilter);
+			Jersey3ReplicationClient replicationClient = createReplicationClient(serverConfig, serverCodecs,
+					peerEurekaNodeUrl, this.replicationClientAdditionalFilters.getFilters());
 
 			String targetHost = hostFromUrl(peerEurekaNodeUrl);
 			if (targetHost == null) {
 				targetHost = "host";
 			}
 			return new PeerEurekaNode(registry, targetHost, peerEurekaNodeUrl, replicationClient, serverConfig);
+		}
+
+		// FIXME: 4.0 update Jersey3ReplicationClient.createReplicationClient to handle
+		// additional filters
+		private static Jersey3ReplicationClient createReplicationClient(EurekaServerConfig config,
+				ServerCodecs serverCodecs, String serviceUrl, Collection<ClientRequestFilter> additionalFilters) {
+			String name = Jersey3ReplicationClient.class.getSimpleName() + ": " + serviceUrl + "apps/: ";
+
+			EurekaJersey3Client jerseyClient;
+			try {
+				String hostname;
+				try {
+					hostname = new URL(serviceUrl).getHost();
+				}
+				catch (MalformedURLException e) {
+					hostname = serviceUrl;
+				}
+
+				String jerseyClientName = "Discovery-PeerNodeClient-" + hostname;
+				EurekaJersey3ClientImpl.EurekaJersey3ClientBuilder clientBuilder = new EurekaJersey3ClientImpl.EurekaJersey3ClientBuilder()
+						.withClientName(jerseyClientName).withUserAgent("Java-EurekaClient-Replication")
+						.withEncoderWrapper(serverCodecs.getFullJsonCodec())
+						.withDecoderWrapper(serverCodecs.getFullJsonCodec())
+						.withConnectionTimeout(config.getPeerNodeConnectTimeoutMs())
+						.withReadTimeout(config.getPeerNodeReadTimeoutMs())
+						.withMaxConnectionsPerHost(config.getPeerNodeTotalConnectionsPerHost())
+						.withMaxTotalConnections(config.getPeerNodeTotalConnections())
+						.withConnectionIdleTimeout(config.getPeerNodeConnectionIdleTimeoutSeconds());
+
+				if (serviceUrl.startsWith("https://") && "true"
+						.equals(System.getProperty("com.netflix.eureka.shouldSSLConnectionsUseSystemSocketFactory"))) {
+					clientBuilder.withSystemSSLConfiguration();
+				}
+				jerseyClient = clientBuilder.build();
+			}
+			catch (Throwable e) {
+				throw new RuntimeException("Cannot Create new Replica Node :" + name, e);
+			}
+
+			String ip = null;
+			try {
+				ip = InetAddress.getLocalHost().getHostAddress();
+			}
+			catch (UnknownHostException e) {
+				log.warn("Cannot find localhost ip", e);
+			}
+
+			Client jerseyApacheClient = jerseyClient.getClient();
+			jerseyApacheClient.register(new Jersey3DynamicGZIPContentEncodingFilter(config));
+
+			for (ClientRequestFilter filter : additionalFilters) {
+				jerseyApacheClient.register(filter);
+			}
+
+			EurekaServerIdentity identity = new EurekaServerIdentity(ip);
+			jerseyApacheClient.register(new EurekaIdentityHeaderFilter(identity));
+
+			return new Jersey3ReplicationClient(jerseyClient, serviceUrl);
 		}
 
 		@Override

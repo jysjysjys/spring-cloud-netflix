@@ -16,14 +16,13 @@
 
 package org.springframework.cloud.netflix.eureka.server;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Collections;
 
 import com.netflix.eureka.cluster.PeerEurekaNodes;
-import com.sun.jersey.api.client.ClientHandlerException;
-import com.sun.jersey.api.client.ClientRequest;
-import com.sun.jersey.api.client.ClientResponse;
-import com.sun.jersey.api.client.filter.ClientFilter;
+import jakarta.ws.rs.client.ClientRequestContext;
+import jakarta.ws.rs.client.ClientRequestFilter;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,9 +50,9 @@ class RefreshablePeerEurekaNodesWithCustomFiltersTests {
 	void testCustomPeerNodesShouldTakePrecedenceOverDefault() {
 		assertThat(peerEurekaNodes instanceof RefreshablePeerEurekaNodes)
 				.as("PeerEurekaNodes should be an instance of RefreshablePeerEurekaNodes").isTrue();
+		RefreshablePeerEurekaNodes refreshablePeerEurekaNodes = (RefreshablePeerEurekaNodes) peerEurekaNodes;
 
-		ReplicationClientAdditionalFilters filters = getField(RefreshablePeerEurekaNodes.class,
-				(RefreshablePeerEurekaNodes) peerEurekaNodes, "replicationClientAdditionalFilters");
+		ReplicationClientAdditionalFilters filters = refreshablePeerEurekaNodes.replicationClientAdditionalFilters;
 		assertThat(filters.getFilters())
 				.as("PeerEurekaNodes'should have only one filter set on replicationClientAdditionalFilters").hasSize(1);
 		assertThat(filters.getFilters().iterator().next() instanceof Application.CustomClientFilter)
@@ -78,11 +77,11 @@ class RefreshablePeerEurekaNodesWithCustomFiltersTests {
 			return new ReplicationClientAdditionalFilters(Collections.singletonList(new CustomClientFilter()));
 		}
 
-		protected class CustomClientFilter extends ClientFilter {
+		protected class CustomClientFilter implements ClientRequestFilter {
 
 			@Override
-			public ClientResponse handle(ClientRequest cr) throws ClientHandlerException {
-				return getNext().handle(cr);
+			public void filter(ClientRequestContext requestContext) throws IOException {
+				// noop
 			}
 
 		}

@@ -52,7 +52,7 @@ class EurekaControllerReplicasTests {
 
 	String totalNoAutoList = combinationNoAuthList1 + "," + combinationNoAuthList2;
 
-	String empty = new String();
+	String empty = "";
 
 	private ApplicationInfoManager original;
 
@@ -72,12 +72,12 @@ class EurekaControllerReplicasTests {
 	}
 
 	@Test
-	void testFilterReplicasNoAuth() throws Exception {
+	void testFilterReplicasNoAuth() {
 		Map<String, Object> model = new HashMap<>();
 		StatusInfo statusInfo = StatusInfo.Builder.newBuilder().add("registered-replicas", empty)
 				.add("available-replicas", noAuthList1).add("unavailable-replicas", noAuthList2)
 				.withInstanceInfo(this.instanceInfo).build();
-		EurekaController controller = new EurekaController(null);
+		EurekaController controller = new EurekaController(null, new EurekaProperties());
 
 		controller.filterReplicas(model, statusInfo);
 
@@ -90,12 +90,12 @@ class EurekaControllerReplicasTests {
 	}
 
 	@Test
-	void testFilterReplicasAuth() throws Exception {
+	void testFilterReplicasAuth() {
 		Map<String, Object> model = new HashMap<>();
 		StatusInfo statusInfo = StatusInfo.Builder.newBuilder().add("registered-replicas", authList2)
 				.add("available-replicas", authList1).add("unavailable-replicas", empty).withInstanceInfo(instanceInfo)
 				.build();
-		EurekaController controller = new EurekaController(null);
+		EurekaController controller = new EurekaController(null, new EurekaProperties());
 
 		controller.filterReplicas(model, statusInfo);
 
@@ -108,12 +108,12 @@ class EurekaControllerReplicasTests {
 	}
 
 	@Test
-	void testFilterReplicasAuthWithCombinationList() throws Exception {
+	void testFilterReplicasAuthWithCombinationList() {
 		Map<String, Object> model = new HashMap<>();
 		StatusInfo statusInfo = StatusInfo.Builder.newBuilder().add("registered-replicas", totalAutoList)
 				.add("available-replicas", combinationAuthList1).add("unavailable-replicas", combinationAuthList2)
 				.withInstanceInfo(instanceInfo).build();
-		EurekaController controller = new EurekaController(null);
+		EurekaController controller = new EurekaController(null, new EurekaProperties());
 
 		controller.filterReplicas(model, statusInfo);
 

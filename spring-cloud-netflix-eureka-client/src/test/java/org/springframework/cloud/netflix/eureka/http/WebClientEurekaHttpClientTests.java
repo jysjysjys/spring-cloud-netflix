@@ -27,24 +27,28 @@ import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.cloud.commons.util.InetUtils;
 import org.springframework.cloud.netflix.eureka.EurekaInstanceConfigBean;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.web.reactive.function.client.WebClient;
 
 /**
  * @author Daniel Lavoie
  */
 @SpringBootTest(classes = EurekaServerMockApplication.class,
-		properties = { "debug=true", "security.basic.enabled=true" }, webEnvironment = WebEnvironment.RANDOM_PORT)
+		properties = { "debug=true", "security.basic.enabled=true", "eureka.client.webclient.enabled=true",
+				"eureka.client.fetch-registry=false", "eureka.client.register-with-eureka=false" },
+		webEnvironment = WebEnvironment.RANDOM_PORT)
 @DirtiesContext
-class RestTemplateEurekaHttpClientTest extends AbstractEurekaHttpClientTest {
+class WebClientEurekaHttpClientTests extends AbstractEurekaHttpClientTests {
 
 	@Autowired
 	private InetUtils inetUtils;
 
-	@Value("http://${security.user.name}:${security.user.password}@localhost:${local.server.port}")
+	@Value("http://${security.user.name}:${security.user.password}@localhost:${local.server.port}/eureka/")
 	private String serviceUrl;
 
 	@BeforeEach
 	void setup() {
-		eurekaHttpClient = new RestTemplateTransportClientFactory().newClient(new DefaultEndpoint(serviceUrl));
+		eurekaHttpClient = new WebClientTransportClientFactory(WebClient::builder)
+				.newClient(new DefaultEndpoint(serviceUrl));
 
 		EurekaInstanceConfigBean config = new EurekaInstanceConfigBean(inetUtils);
 

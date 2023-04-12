@@ -47,6 +47,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 /**
  * @author Spencer Gibb
  * @author Gang Li
+ * @author Weix Sun
  */
 @Controller
 @RequestMapping("${eureka.dashboard.path:/}")
@@ -55,10 +56,13 @@ public class EurekaController {
 	@Value("${eureka.dashboard.path:/}")
 	private String dashboardPath = "";
 
-	private ApplicationInfoManager applicationInfoManager;
+	private final ApplicationInfoManager applicationInfoManager;
 
-	public EurekaController(ApplicationInfoManager applicationInfoManager) {
+	private final EurekaProperties eurekaProperties;
+
+	public EurekaController(ApplicationInfoManager applicationInfoManager, EurekaProperties eurekaProperties) {
 		this.applicationInfoManager = applicationInfoManager;
+		this.eurekaProperties = eurekaProperties;
 	}
 
 	@RequestMapping(method = RequestMethod.GET)
@@ -115,8 +119,8 @@ public class EurekaController {
 	private void populateHeader(Map<String, Object> model) {
 		model.put("currentTime", StatusResource.getCurrentTimeAsString());
 		model.put("upTime", StatusInfo.getUpTime());
-		model.put("environment", "N/A"); // FIXME:
-		model.put("datacenter", "N/A"); // FIXME:
+		model.put("environment", eurekaProperties.getEnvironment());
+		model.put("datacenter", eurekaProperties.getDatacenter());
 		PeerAwareInstanceRegistry registry = getRegistry();
 		model.put("registry", registry);
 		model.put("isBelowRenewThreshold", registry.isBelowRenewThresold() == 1);

@@ -26,7 +26,7 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.boot.web.server.LocalServerPort;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.cloud.netflix.eureka.server.ApplicationContextTests.Application;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpEntity;
@@ -40,7 +40,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(classes = Application.class, webEnvironment = WebEnvironment.RANDOM_PORT,
 		properties = { "spring.application.name=eureka", "server.servlet.context-path=/context",
-				"management.security.enabled=false", "management.endpoints.web.exposure.include=*" })
+				"management.security.enabled=false", "management.endpoints.web.exposure.include=*",
+				"eureka.server.version.filter.debug.response-header=X-Version-Filter-Computed-Path" })
 class ApplicationContextTests {
 
 	private static final String BASE_PATH = new WebEndpointProperties().getBasePath();
@@ -54,6 +55,8 @@ class ApplicationContextTests {
 		ResponseEntity<Map> entity = new TestRestTemplate()
 				.getForEntity("http://localhost:" + this.port + "/context/eureka/apps", Map.class);
 		assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.OK);
+		String computedPath = entity.getHeaders().getFirst("X-Version-Filter-Computed-Path");
+		assertThat(computedPath).isEqualTo("/context/eureka/v2/apps");
 	}
 
 	@Test

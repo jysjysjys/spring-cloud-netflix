@@ -22,11 +22,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.web.server.LocalServerPort;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.cloud.netflix.eureka.http.WebClientEurekaHttpClient;
+import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.reactive.function.client.ClientResponse;
@@ -61,20 +62,17 @@ class EurekaConfigServerBootstrapConfigurationWebClientIntegrationTests {
 	@SpringBootConfiguration
 	@EnableAutoConfiguration
 	@RestController
-	static class WebClientController extends WebSecurityConfigurerAdapter {
+	static class WebClientController {
 
-		@GetMapping
+		@GetMapping("/")
 		public String hello() {
-			StringBuilder s = new StringBuilder();
-			for (int i = 0; i < 300000; i++) {
-				s.append(".");
-			}
-			return s.toString();
+			return ".".repeat(300000);
 		}
 
-		@Override
-		protected void configure(HttpSecurity http) throws Exception {
-			http.authorizeRequests().anyRequest().permitAll().and().csrf().disable();
+		@Bean
+		public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+			http.authorizeHttpRequests().anyRequest().permitAll().and().csrf().disable();
+			return http.build();
 		}
 
 	}

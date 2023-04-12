@@ -80,6 +80,9 @@ See {github-code}/spring-cloud-netflix-eureka-client/src/main/java/org/springfra
 
 To disable the Eureka Discovery Client, you can set `eureka.client.enabled` to `false`. Eureka Discovery Client will also be disabled when `spring.cloud.discovery.enabled` is set to `false`.
 
+
+NOTE: Specifying the version of the Spring Cloud Netflix Eureka server as a path parameter is not currently supported. This means you cannot set the version in the context path (`eurekaServerURLContext`). Instead, you can include the version in the server URL (for example, you can set `defaultZone: http://localhost:8761/eureka/v2`).
+
 === Authenticating with the Eureka Server
 
 HTTP basic authentication is automatically added to your eureka client if one of the `eureka.client.serviceUrl.defaultZone` URLs has credentials embedded in it (curl style, as follows: `https://user:password@localhost:8761/eureka`).
@@ -108,6 +111,19 @@ The `eureka.client.tls.enabled` needs to be true to enable Eureka client side TL
 NOTE: Because of a limitation in Eureka, it is not possible to support per-server basic auth credentials, so only the first set that are found is used.
 
 If you want to customize the RestTemplate used by the Eureka HTTP Client you may want to create a bean of `EurekaClientHttpRequestFactorySupplier` and provide your own logic for generating a `ClientHttpRequestFactory` instance.
+
+All default timeout-related properties for RestTemplate used by the Eureka HTTP Client are set to 3 minutes (in keeping with Apache HC5 default `RequestConfig` and `SocketConfig`). Therefore, to specify the timeout values, you must specify the value directly with the properties in `eureka.client.rest-template-timeout`. (All timeout properties are in milliseconds.)
+
+.application.yml
+[source,yaml]
+----
+eureka:
+  client:
+    rest-template-timeout:
+      connect-timeout: 5000
+      connect-request-timeout: 8000
+      socket-timeout: 10000
+----
 
 === Status Page and Health Indicator
 
@@ -363,6 +379,12 @@ it can use the domain name from the server hostname as a proxy for the zone.
 If there is no other source of zone data, then a guess is made, based on the client configuration (as opposed to the instance configuration).
 We take `eureka.client.availabilityZones`, which is a map from region name to a list of zones, and pull out the first zone for the instance's own region (that is, the `eureka.client.region`, which defaults to "us-east-1", for compatibility with native Netflix).
 
+=== AOT and Native Image Support
+
+Spring Cloud Netflix Eureka Client integration supports Spring AOT transformations and native images, however, only with refresh mode disabled.
+
+WARNING: If you want to run Eureka Client in AOT or native image modes, make sure to set `spring.cloud.refresh.enabled` to `false`
+
 [[spring-cloud-eureka-server]]
 == Service Discovery: Eureka Server
 
@@ -429,6 +451,10 @@ dependencyManagement {
 }
 ----
 ====
+
+=== `defaultOpenForTrafficCount` and its effect on EurekaServer warmup time
+
+Netflix Eureka's `waitTimeInMsWhenSyncEmpty` setting is not taken into account in Spring Cloud Eureka server at the beginning. In order to enable the warmup time, set `eureka.server.defaultOpenForTrafficCount=0`.
 
 [[spring-cloud-eureka-server-zones-and-regions]]
 === High Availability, Zones and Regions
@@ -583,6 +609,10 @@ when running a Eureka server you must include these dependencies in your POM or 
 	<artifactId>jaxb-runtime</artifactId>
 </dependency>
 ----
+
+=== AOT and Native Image Support
+
+Spring Cloud Netflix Eureka Server does not support Spring AOT transformations or native images.
 
 == Configuration properties
 

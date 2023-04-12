@@ -22,15 +22,15 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.cloud.test.TestSocketUtils;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.util.SocketUtils;
 
 public class AppRunner implements AutoCloseable {
 
-	private Class<?> appClass;
+	private final Class<?> appClass;
 
-	private Map<String, String> props;
+	private final Map<String, String> props;
 
 	private ConfigurableApplicationContext app;
 
@@ -56,7 +56,7 @@ public class AppRunner implements AutoCloseable {
 	}
 
 	private int availabeTcpPort() {
-		return SocketUtils.findAvailableTcpPort();
+		return TestSocketUtils.findAvailableTcpPort();
 	}
 
 	private String[] props() {

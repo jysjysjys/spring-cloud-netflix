@@ -40,7 +40,6 @@ import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 public class EurekaHttpClientsOptionalArgsConfigurationNoWebfluxTest {
 
 	@Test
-	@SuppressWarnings("unchecked")
 	public void contextFailsWithoutWebClient() {
 
 		ConfigurableApplicationContext ctx = null;
@@ -52,7 +51,7 @@ public class EurekaHttpClientsOptionalArgsConfigurationNoWebfluxTest {
 		}
 		catch (Exception e) {
 			// this is the desired state
-			assertThat(e).hasMessageContaining("WebClient is not on the classpath");
+			assertThat(e).hasStackTraceContaining("WebClient is not on the classpath");
 		}
 		if (ctx != null) {
 			ctx.close();
