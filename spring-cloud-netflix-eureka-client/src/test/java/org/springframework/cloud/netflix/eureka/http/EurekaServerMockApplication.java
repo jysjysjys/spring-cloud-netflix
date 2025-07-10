@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2022 the original author or authors.
+ * Copyright 2017-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,9 +31,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -45,6 +47,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -58,6 +61,8 @@ import static org.springframework.util.Assert.isTrue;
  * Mocked Eureka Server.
  *
  * @author Daniel Lavoie
+ * @author Wonchul Heo
+ * @author Olga Maciaszek-Sharma
  */
 @Configuration(proxyBeanMethods = false)
 @RestController
@@ -65,26 +70,46 @@ import static org.springframework.util.Assert.isTrue;
 @SpringBootApplication
 public class EurekaServerMockApplication {
 
-	private static final InstanceInfo INFO = InstanceInfo.Builder.newBuilder().setInstanceId("app1instance1")
-			.setAppName("app1").setAppNameForDeser("app1fordeser").setAppGroupName("app1group")
-			.setAppGroupNameForDeser("app1group1fordeser").setHostName("app1host1")
-			.setStatus(InstanceInfo.InstanceStatus.UP).setOverriddenStatus(InstanceInfo.InstanceStatus.DOWN)
-			.setIPAddr("127.0.0.1").setSID("app1sid").setPort(8080).setSecurePort(4443)
-			.enablePort(InstanceInfo.PortType.UNSECURE, true).setHomePageUrl("/", "http://localhost/")
-			.setHomePageUrlForDeser("http://localhost/").setStatusPageUrl("/status", "http://localhost/info")
-			.setStatusPageUrlForDeser("http://localhost/status")
-			.setHealthCheckUrls("/ping", "http://localhost/ping", null)
-			.setHealthCheckUrlsForDeser("http://localhost/ping", null).setVIPAddress("localhost:8080")
-			.setVIPAddressDeser("localhost:8080").setSecureVIPAddress("localhost:4443")
-			.setSecureVIPAddressDeser("localhost:4443")
-			.setDataCenterInfo(new MyDataCenterInfo(DataCenterInfo.Name.MyOwn))
-			.setLeaseInfo(LeaseInfo.Builder.newBuilder().setDurationInSecs(30).setRenewalIntervalInSecs(30)
-					.setEvictionTimestamp(System.currentTimeMillis() + 30000)
-					.setRenewalTimestamp(System.currentTimeMillis() - 1000)
-					.setRegistrationTimestamp(System.currentTimeMillis() - 2000).build())
-			.add("metadatakey1", "metadatavalue1").setASGName("asg1").setIsCoordinatingDiscoveryServer(false)
-			.setLastUpdatedTimestamp(System.currentTimeMillis()).setLastDirtyTimestamp(System.currentTimeMillis())
-			.setActionType(InstanceInfo.ActionType.ADDED).setNamespace("namespace1").build();
+	private static final InstanceInfo INFO = InstanceInfo.Builder.newBuilder()
+		.setInstanceId("app1instance1")
+		.setAppName("app1")
+		.setAppNameForDeser("app1fordeser")
+		.setAppGroupName("app1group")
+		.setAppGroupNameForDeser("app1group1fordeser")
+		.setHostName("app1host1")
+		.setStatus(InstanceInfo.InstanceStatus.UP)
+		.setOverriddenStatus(InstanceInfo.InstanceStatus.DOWN)
+		.setIPAddr("127.0.0.1")
+		.setSID("app1sid")
+		.setPort(8080)
+		.setSecurePort(4443)
+		.enablePort(InstanceInfo.PortType.UNSECURE, true)
+		.setHomePageUrl("/", "http://localhost/")
+		.setHomePageUrlForDeser("http://localhost/")
+		.setStatusPageUrl("/status", "http://localhost/info")
+		.setStatusPageUrlForDeser("http://localhost/status")
+		.setHealthCheckUrls("/ping", "http://localhost/ping", null)
+		.setHealthCheckUrlsForDeser("http://localhost/ping", null)
+		.setVIPAddress("localhost:8080")
+		.setVIPAddressDeser("localhost:8080")
+		.setSecureVIPAddress("localhost:4443")
+		.setSecureVIPAddressDeser("localhost:4443")
+		.setDataCenterInfo(new MyDataCenterInfo(DataCenterInfo.Name.MyOwn))
+		.setLeaseInfo(LeaseInfo.Builder.newBuilder()
+			.setDurationInSecs(30)
+			.setRenewalIntervalInSecs(30)
+			.setEvictionTimestamp(System.currentTimeMillis() + 30000)
+			.setRenewalTimestamp(System.currentTimeMillis() - 1000)
+			.setRegistrationTimestamp(System.currentTimeMillis() - 2000)
+			.build())
+		.add("metadatakey1", "metadatavalue1")
+		.setASGName("asg1")
+		.setIsCoordinatingDiscoveryServer(false)
+		.setLastUpdatedTimestamp(System.currentTimeMillis())
+		.setLastDirtyTimestamp(System.currentTimeMillis())
+		.setActionType(InstanceInfo.ActionType.ADDED)
+		.setNamespace("namespace1")
+		.build();
 
 	/**
 	 * Simulates Eureka Server own's serialization.
@@ -92,7 +117,7 @@ public class EurekaServerMockApplication {
 	 */
 	@Bean
 	public MappingJackson2HttpMessageConverter mappingJacksonHttpMessageConverter() {
-		return new RestTemplateTransportClientFactory().mappingJacksonHttpMessageConverter();
+		return EurekaHttpClientUtils.mappingJacksonHttpMessageConverter();
 	}
 
 	@ResponseStatus(HttpStatus.OK)
@@ -151,7 +176,11 @@ public class EurekaServerMockApplication {
 	}
 
 	@GetMapping("/apps/{appName}")
-	public Application getApplication(@PathVariable String appName) {
+	public Application getApplication(@PathVariable String appName, @RequestHeader HttpHeaders headers) {
+		// Used to verify that RequestConfig customizer has taken effect
+		if (appName.equals("upgrade") && !headers.containsHeader("upgrade")) {
+			throw new RuntimeException("No upgrade header found");
+		}
 		return new Application();
 	}
 
@@ -166,18 +195,17 @@ public class EurekaServerMockApplication {
 
 		@Bean
 		public InMemoryUserDetailsManager userDetailsService() {
-			UserDetails user = User.withDefaultPasswordEncoder().username("test").password("test").roles("USER")
-					.build();
+			UserDetails user = User.withDefaultPasswordEncoder()
+				.username("test")
+				.password("test")
+				.roles("USER")
+				.build();
 			return new InMemoryUserDetailsManager(user);
 		}
 
 		@Bean
 		public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-			// @formatter:off
-			http
-					.securityMatcher("/v2/apps/**")
-					.httpBasic();
-			// @formatter:on
+			http.securityMatcher("/v2/apps/**").httpBasic(Customizer.withDefaults());
 			return http.build();
 		}
 

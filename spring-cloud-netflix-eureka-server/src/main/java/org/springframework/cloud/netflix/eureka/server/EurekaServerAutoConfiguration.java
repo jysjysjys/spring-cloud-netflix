@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2022 the original author or authors.
+ * Copyright 2013-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.regex.Pattern;
 
 import com.netflix.appinfo.ApplicationInfoManager;
@@ -33,11 +35,9 @@ import com.netflix.discovery.EurekaClientConfig;
 import com.netflix.discovery.converters.EurekaJacksonCodec;
 import com.netflix.discovery.converters.wrappers.CodecWrapper;
 import com.netflix.discovery.converters.wrappers.CodecWrappers;
-import com.netflix.discovery.shared.transport.jersey.TransportClientFactories;
 import com.netflix.discovery.shared.transport.jersey3.EurekaIdentityHeaderFilter;
 import com.netflix.discovery.shared.transport.jersey3.EurekaJersey3Client;
 import com.netflix.discovery.shared.transport.jersey3.EurekaJersey3ClientImpl;
-import com.netflix.discovery.shared.transport.jersey3.Jersey3TransportClientFactories;
 import com.netflix.eureka.DefaultEurekaServerContext;
 import com.netflix.eureka.EurekaServerConfig;
 import com.netflix.eureka.EurekaServerContext;
@@ -49,7 +49,6 @@ import com.netflix.eureka.resources.DefaultServerCodecs;
 import com.netflix.eureka.resources.ServerCodecs;
 import com.netflix.eureka.transport.EurekaServerHttpClientFactory;
 import com.netflix.eureka.transport.Jersey3DynamicGZIPContentEncodingFilter;
-import com.netflix.eureka.transport.Jersey3EurekaServerHttpClientFactory;
 import com.netflix.eureka.transport.Jersey3ReplicationClient;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
@@ -80,12 +79,13 @@ import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.web.server.autoconfigure.ServerProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.cloud.client.actuator.HasFeatures;
 import org.springframework.cloud.context.environment.EnvironmentChangeEvent;
 import org.springframework.cloud.netflix.eureka.EurekaConstants;
+import org.springframework.cloud.netflix.eureka.EurekaInstanceConfigBean;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
@@ -106,6 +106,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * @author Biju Kunjummen
  * @author Fahim Farook
  * @author Weix Sun
+ * @author Robert Bleyl
+ * @author Olga Maciaszek-Sharma
  */
 @Configuration(proxyBeanMethods = false)
 @Import(EurekaServerInitializerConfiguration.class)
@@ -185,21 +187,26 @@ public class EurekaServerAutoConfiguration implements WebMvcConfigurer {
 	}
 
 	@Bean
-	@ConditionalOnMissingBean(TransportClientFactories.class)
-	public Jersey3TransportClientFactories jersey3TransportClientFactories() {
-		return Jersey3TransportClientFactories.getInstance();
-	}
-
-	@SuppressWarnings({ "rawtypes", "unchecked" })
-	@Bean
-	public Jersey3EurekaServerHttpClientFactory jersey3EurekaServerHttpClientFactory() {
-		return new Jersey3EurekaServerHttpClientFactory();
-	}
-
-	@Bean
 	public PeerAwareInstanceRegistry peerAwareInstanceRegistry(ServerCodecs serverCodecs,
-			EurekaServerHttpClientFactory eurekaServerHttpClientFactory) {
-		this.eurekaClient.getApplications(); // force initialization
+			EurekaServerHttpClientFactory eurekaServerHttpClientFactory,
+			EurekaInstanceConfigBean eurekaInstanceConfigBean) {
+		if (eurekaInstanceConfigBean.isAsyncClientInitialization()) {
+			if (log.isDebugEnabled()) {
+				log.debug("Initializing client asynchronously...");
+			}
+
+			ExecutorService executorService = Executors.newSingleThreadExecutor();
+			executorService.submit(() -> {
+				this.eurekaClient.getApplications();
+				if (log.isDebugEnabled()) {
+					log.debug("Asynchronous client initialization done.");
+				}
+			});
+		}
+		else {
+			this.eurekaClient.getApplications(); // force initialization
+		}
+
 		return new InstanceRegistry(this.eurekaServerConfig, this.eurekaClientConfig, serverCodecs, this.eurekaClient,
 				eurekaServerHttpClientFactory,
 				this.instanceRegistryProperties.getExpectedNumberOfClientsSendingRenews(),
@@ -343,8 +350,9 @@ public class EurekaServerAutoConfiguration implements WebMvcConfigurer {
 		rc.register(new ContainerLifecycleListener() {
 			@Override
 			public void onStartup(Container container) {
-				ServiceLocator serviceLocator = container.getApplicationHandler().getInjectionManager()
-						.getInstance(ServiceLocator.class);
+				ServiceLocator serviceLocator = container.getApplicationHandler()
+					.getInjectionManager()
+					.getInstance(ServiceLocator.class);
 				SpringBridge.getSpringBridge().initializeSpringBridge(serviceLocator);
 				serviceLocator.getService(SpringIntoHK2Bridge.class).bridgeSpringBeanFactory(beanFactory);
 			}
@@ -443,17 +451,18 @@ public class EurekaServerAutoConfiguration implements WebMvcConfigurer {
 
 				String jerseyClientName = "Discovery-PeerNodeClient-" + hostname;
 				EurekaJersey3ClientImpl.EurekaJersey3ClientBuilder clientBuilder = new EurekaJersey3ClientImpl.EurekaJersey3ClientBuilder()
-						.withClientName(jerseyClientName).withUserAgent("Java-EurekaClient-Replication")
-						.withEncoderWrapper(serverCodecs.getFullJsonCodec())
-						.withDecoderWrapper(serverCodecs.getFullJsonCodec())
-						.withConnectionTimeout(config.getPeerNodeConnectTimeoutMs())
-						.withReadTimeout(config.getPeerNodeReadTimeoutMs())
-						.withMaxConnectionsPerHost(config.getPeerNodeTotalConnectionsPerHost())
-						.withMaxTotalConnections(config.getPeerNodeTotalConnections())
-						.withConnectionIdleTimeout(config.getPeerNodeConnectionIdleTimeoutSeconds());
+					.withClientName(jerseyClientName)
+					.withUserAgent("Java-EurekaClient-Replication")
+					.withEncoderWrapper(serverCodecs.getFullJsonCodec())
+					.withDecoderWrapper(serverCodecs.getFullJsonCodec())
+					.withConnectionTimeout(config.getPeerNodeConnectTimeoutMs())
+					.withReadTimeout(config.getPeerNodeReadTimeoutMs())
+					.withMaxConnectionsPerHost(config.getPeerNodeTotalConnectionsPerHost())
+					.withMaxTotalConnections(config.getPeerNodeTotalConnections())
+					.withConnectionIdleTimeout(config.getPeerNodeConnectionIdleTimeoutSeconds());
 
 				if (serviceUrl.startsWith("https://") && "true"
-						.equals(System.getProperty("com.netflix.eureka.shouldSSLConnectionsUseSystemSocketFactory"))) {
+					.equals(System.getProperty("com.netflix.eureka.shouldSSLConnectionsUseSystemSocketFactory"))) {
 					clientBuilder.withSystemSSLConfiguration();
 				}
 				jerseyClient = clientBuilder.build();

@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2022 the original author or authors.
+ * Copyright 2013-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,78 +16,23 @@
 
 package org.springframework.cloud.netflix.eureka;
 
-import java.util.Objects;
-
-import org.apache.hc.client5.http.config.RequestConfig;
-import org.apache.hc.core5.http.io.SocketConfig;
-
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.cloud.netflix.eureka.http.RestTemplateEurekaHttpClient;
+import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestTemplate;
 
 /**
- * Properties for configuring timeouts used in {@link RestTemplate} required by
- * {@link RestTemplateEurekaHttpClient}.
+ * A {@link RestTemplate}-specific {@link TimeoutProperties} implementation.
  *
  * @author Jiwon Jeon
+ * @author Mooyong Lee
+ * @author Olga Maciaszek-Sharma
  * @since 3.1.6
+ * @deprecated {@link RestTemplate}-based implementation to be removed in favour of
+ * {@link RestClient}-based implementation.
  */
+@Deprecated(forRemoval = true)
 @ConfigurationProperties("eureka.client.rest-template-timeout")
-public class RestTemplateTimeoutProperties {
-
-	/**
-	 * Default values are set to 180000, in keeping with {@link RequestConfig} and
-	 * {@link SocketConfig} defaults.
-	 */
-	private int connectTimeout = 3 * 60 * 1000;
-
-	private int connectRequestTimeout = 3 * 60 * 1000;
-
-	private int socketTimeout = 3 * 60 * 1000;
-
-	public int getConnectTimeout() {
-		return connectTimeout;
-	}
-
-	public int getConnectRequestTimeout() {
-		return connectRequestTimeout;
-	}
-
-	public int getSocketTimeout() {
-		return socketTimeout;
-	}
-
-	public void setConnectTimeout(int connectTimeout) {
-		this.connectTimeout = connectTimeout;
-	}
-
-	public void setConnectRequestTimeout(int connectRequestTimeout) {
-		this.connectRequestTimeout = connectRequestTimeout;
-	}
-
-	public void setSocketTimeout(int socketTimeout) {
-		this.socketTimeout = socketTimeout;
-	}
-
-	@Override
-	public boolean equals(Object o) {
-		if (this == o) {
-			return true;
-		}
-		if (o == null || getClass() != o.getClass()) {
-			return false;
-		}
-
-		RestTemplateTimeoutProperties that = (RestTemplateTimeoutProperties) o;
-
-		return connectTimeout == that.connectTimeout && connectRequestTimeout == that.connectRequestTimeout
-				&& socketTimeout == that.socketTimeout;
-	}
-
-	@Override
-	public int hashCode() {
-		return Objects.hash(connectTimeout, connectRequestTimeout, socketTimeout);
-	}
+public class RestTemplateTimeoutProperties extends TimeoutProperties {
 
 	@Override
 	public String toString() {

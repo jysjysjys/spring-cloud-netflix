@@ -13,15 +13,21 @@
       "type": "java.lang.Boolean"
     },
     {
-      "defaultValue": true,
-      "name": "ribbon.eureka.enabled",
-      "description": "Enables the use of Eureka with Ribbon.",
+      "defaultValue": false,
+      "name": "eureka.client.restclient.enabled",
+      "description": "Enables the use of RestClient for Eureka HTTP Client.",
       "type": "java.lang.Boolean"
     },
     {
       "defaultValue": false,
       "name": "eureka.client.webclient.enabled",
       "description": "Enables the use of WebClient for Eureka HTTP Client.",
+      "type": "java.lang.Boolean"
+    },
+    {
+      "defaultValue": true,
+      "name": "eureka.client.jersey.enabled",
+      "description": "Enables the use of JerseyClient for Eureka HTTP Client.",
       "type": "java.lang.Boolean"
     },
     {

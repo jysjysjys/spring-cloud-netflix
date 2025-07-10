@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2022 the original author or authors.
+ * Copyright 2013-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,8 +25,8 @@ import org.springframework.boot.actuate.autoconfigure.endpoint.web.WebEndpointPr
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.boot.web.server.test.LocalServerPort;
+import org.springframework.boot.web.server.test.client.TestRestTemplate;
 import org.springframework.cloud.netflix.eureka.server.ApplicationContextTests.Application;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpEntity;
@@ -53,7 +53,7 @@ class ApplicationContextTests {
 	void catalogLoads() {
 		@SuppressWarnings("rawtypes")
 		ResponseEntity<Map> entity = new TestRestTemplate()
-				.getForEntity("http://localhost:" + this.port + "/context/eureka/apps", Map.class);
+			.getForEntity("http://localhost:" + this.port + "/context/eureka/apps", Map.class);
 		assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.OK);
 		String computedPath = entity.getHeaders().getFirst("X-Version-Filter-Computed-Path");
 		assertThat(computedPath).isEqualTo("/context/eureka/v2/apps");
@@ -62,7 +62,7 @@ class ApplicationContextTests {
 	@Test
 	void dashboardLoads() {
 		ResponseEntity<String> entity = new TestRestTemplate()
-				.getForEntity("http://localhost:" + this.port + "/context/", String.class);
+			.getForEntity("http://localhost:" + this.port + "/context/", String.class);
 		assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.OK);
 		String body = entity.getBody();
 		// System.err.println(body);
@@ -75,14 +75,14 @@ class ApplicationContextTests {
 	@Test
 	void cssAvailable() {
 		ResponseEntity<String> entity = new TestRestTemplate()
-				.getForEntity("http://localhost:" + this.port + "/context/eureka/css/wro.css", String.class);
+			.getForEntity("http://localhost:" + this.port + "/context/eureka/css/wro.css", String.class);
 		assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.OK);
 	}
 
 	@Test
 	void jsAvailable() {
 		ResponseEntity<String> entity = new TestRestTemplate()
-				.getForEntity("http://localhost:" + this.port + "/context/eureka/js/wro.js", String.class);
+			.getForEntity("http://localhost:" + this.port + "/context/eureka/js/wro.js", String.class);
 		assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.OK);
 	}
 

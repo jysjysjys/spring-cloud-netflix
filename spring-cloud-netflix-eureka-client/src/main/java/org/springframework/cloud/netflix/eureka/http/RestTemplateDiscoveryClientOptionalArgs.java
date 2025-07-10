@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2022 the original author or authors.
+ * Copyright 2017-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,18 +16,37 @@
 
 package org.springframework.cloud.netflix.eureka.http;
 
+import java.util.function.Supplier;
+
 import com.netflix.discovery.AbstractDiscoveryClientOptionalArgs;
+
+import org.springframework.boot.restclient.RestTemplateBuilder;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestTemplate;
 
 /**
  * @author Daniel Lavoie
+ * @author Armin Krezovic
+ * @deprecated {@link RestTemplate}-based implementation to be removed in favour of
+ * {@link RestClient}-based implementation.
  */
+@Deprecated
 public class RestTemplateDiscoveryClientOptionalArgs extends AbstractDiscoveryClientOptionalArgs<Void> {
 
 	protected final EurekaClientHttpRequestFactorySupplier eurekaClientHttpRequestFactorySupplier;
 
+	protected final Supplier<RestTemplateBuilder> restTemplateBuilderSupplier;
+
 	public RestTemplateDiscoveryClientOptionalArgs(
 			EurekaClientHttpRequestFactorySupplier eurekaClientHttpRequestFactorySupplier) {
+		this(eurekaClientHttpRequestFactorySupplier, RestTemplateBuilder::new);
+	}
+
+	public RestTemplateDiscoveryClientOptionalArgs(
+			EurekaClientHttpRequestFactorySupplier eurekaClientHttpRequestFactorySupplier,
+			Supplier<RestTemplateBuilder> restTemplateBuilderSupplier) {
 		this.eurekaClientHttpRequestFactorySupplier = eurekaClientHttpRequestFactorySupplier;
+		this.restTemplateBuilderSupplier = restTemplateBuilderSupplier;
 	}
 
 }

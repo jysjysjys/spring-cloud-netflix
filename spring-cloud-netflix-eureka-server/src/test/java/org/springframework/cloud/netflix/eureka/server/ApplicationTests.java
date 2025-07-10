@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2022 the original author or authors.
+ * Copyright 2013-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,8 +29,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.actuate.autoconfigure.endpoint.web.WebEndpointProperties;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.boot.web.server.test.LocalServerPort;
+import org.springframework.boot.web.server.test.client.TestRestTemplate;
 import org.springframework.cloud.netflix.eureka.server.ApplicationTests.Application;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpEntity;
@@ -59,7 +59,7 @@ class ApplicationTests {
 	void catalogLoads() {
 		@SuppressWarnings("rawtypes")
 		ResponseEntity<Map> entity = new TestRestTemplate()
-				.getForEntity("http://localhost:" + this.port + "/eureka/apps", Map.class);
+			.getForEntity("http://localhost:" + this.port + "/eureka/apps", Map.class);
 		assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.OK);
 	}
 
@@ -99,12 +99,14 @@ class ApplicationTests {
 	@Test
 	void customCodecWorks() throws Exception {
 		assertThat(this.serverCodecs).as("serverCodecs is wrong type")
-				.isInstanceOf(EurekaServerAutoConfiguration.CloudServerCodecs.class);
+			.isInstanceOf(EurekaServerAutoConfiguration.CloudServerCodecs.class);
 		CodecWrapper codec = this.serverCodecs.getFullJsonCodec();
 		assertThat(codec).as("codec is wrong type").isInstanceOf(CloudJacksonJson.class);
 
-		InstanceInfo instanceInfo = InstanceInfo.Builder.newBuilder().setAppName("fooapp").add("instanceId", "foo")
-				.build();
+		InstanceInfo instanceInfo = InstanceInfo.Builder.newBuilder()
+			.setAppName("fooapp")
+			.add("instanceId", "foo")
+			.build();
 		String encoded = codec.encode(instanceInfo);
 		InstanceInfo decoded = codec.decode(encoded, InstanceInfo.class);
 		assertThat(decoded.getInstanceId()).as("instanceId was wrong").isEqualTo("foo");

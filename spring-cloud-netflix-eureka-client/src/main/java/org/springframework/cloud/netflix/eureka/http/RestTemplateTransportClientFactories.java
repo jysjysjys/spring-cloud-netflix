@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2022 the original author or authors.
+ * Copyright 2017-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,9 +27,16 @@ import com.netflix.discovery.EurekaClientConfig;
 import com.netflix.discovery.shared.transport.TransportClientFactory;
 import com.netflix.discovery.shared.transport.jersey.TransportClientFactories;
 
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestTemplate;
+
 /**
  * @author Daniel Lavoie
+ * @author Armin Krezovic
+ * @deprecated {@link RestTemplate}-based implementation to be removed in favour of
+ * {@link RestClient}-based implementation.
  */
+@Deprecated(forRemoval = true)
 public class RestTemplateTransportClientFactories implements TransportClientFactories<Void> {
 
 	private final RestTemplateDiscoveryClientOptionalArgs args;
@@ -41,16 +48,16 @@ public class RestTemplateTransportClientFactories implements TransportClientFact
 	@Override
 	public TransportClientFactory newTransportClientFactory(EurekaClientConfig clientConfig,
 			Collection<Void> additionalFilters, InstanceInfo myInstanceInfo) {
-		return new RestTemplateTransportClientFactory(this.args.getSSLContext(), this.args.getHostnameVerifier(),
-				this.args.eurekaClientHttpRequestFactorySupplier);
+		return new RestTemplateTransportClientFactory(args.getSSLContext(), args.getHostnameVerifier(),
+				args.eurekaClientHttpRequestFactorySupplier, args.restTemplateBuilderSupplier);
 	}
 
 	@Override
 	public TransportClientFactory newTransportClientFactory(final EurekaClientConfig clientConfig,
 			final Collection<Void> additionalFilters, final InstanceInfo myInstanceInfo,
 			final Optional<SSLContext> sslContext, final Optional<HostnameVerifier> hostnameVerifier) {
-		return new RestTemplateTransportClientFactory(this.args.getSSLContext(), this.args.getHostnameVerifier(),
-				this.args.eurekaClientHttpRequestFactorySupplier);
+		return new RestTemplateTransportClientFactory(args.getSSLContext(), args.getHostnameVerifier(),
+				args.eurekaClientHttpRequestFactorySupplier, args.restTemplateBuilderSupplier);
 	}
 
 }

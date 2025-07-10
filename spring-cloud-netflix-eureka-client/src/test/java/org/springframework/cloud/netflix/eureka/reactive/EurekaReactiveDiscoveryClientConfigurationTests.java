@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2022 the original author or authors.
+ * Copyright 2019-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,9 +36,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 class EurekaReactiveDiscoveryClientConfigurationTests {
 
 	private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-			.withConfiguration(AutoConfigurations.of(UtilAutoConfiguration.class,
-					ReactiveCommonsClientAutoConfiguration.class, EurekaClientAutoConfiguration.class,
-					DiscoveryClientOptionalArgsConfiguration.class, EurekaReactiveDiscoveryClientConfiguration.class));
+		.withConfiguration(AutoConfigurations.of(UtilAutoConfiguration.class,
+				ReactiveCommonsClientAutoConfiguration.class, EurekaClientAutoConfiguration.class,
+				DiscoveryClientOptionalArgsConfiguration.class, EurekaReactiveDiscoveryClientConfiguration.class));
 
 	@Test
 	void shouldWorkWithDefaults() {
@@ -81,8 +81,8 @@ class EurekaReactiveDiscoveryClientConfigurationTests {
 	}
 
 	@Test
-	void worksWithoutActuator() {
-		contextRunner.withClassLoader(new FilteredClassLoader("org.springframework.boot.actuate")).run(context -> {
+	void worksWithoutHealth() {
+		contextRunner.withClassLoader(new FilteredClassLoader("org.springframework.boot.health")).run(context -> {
 			assertThat(context).hasSingleBean(ReactiveDiscoveryClient.class);
 			assertThat(context).doesNotHaveBean(ReactiveDiscoveryClientHealthIndicator.class);
 		});

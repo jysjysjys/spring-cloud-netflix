@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2022 the original author or authors.
+ * Copyright 2013-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,8 +56,6 @@ import org.springframework.aot.hint.RuntimeHintsRegistrar;
 import org.springframework.aot.hint.TypeReference;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.actuate.autoconfigure.health.ConditionalOnEnabledHealthIndicator;
-import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.AnyNestedCondition;
@@ -68,6 +66,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingClas
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.SearchStrategy;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.health.autoconfigure.contributor.ConditionalOnEnabledHealthIndicator;
+import org.springframework.boot.health.contributor.Health;
 import org.springframework.cloud.autoconfigure.RefreshAutoConfiguration;
 import org.springframework.cloud.client.CommonsClientAutoConfiguration;
 import org.springframework.cloud.client.ConditionalOnDiscoveryEnabled;
@@ -103,6 +103,7 @@ import static org.springframework.cloud.commons.util.IdUtils.getDefaultInstanceI
  * @author Daniel Lavoie
  * @author Olga Maciaszek-Sharma
  * @author Tim Ysewyn
+ * @author Robert Bleyl
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties
@@ -224,8 +225,8 @@ public class EurekaClientAutoConfiguration {
 	}
 
 	@Bean
-	public EurekaServiceRegistry eurekaServiceRegistry() {
-		return new EurekaServiceRegistry();
+	public EurekaServiceRegistry eurekaServiceRegistry(EurekaInstanceConfigBean eurekaInstanceConfigBean) {
+		return new EurekaServiceRegistry(eurekaInstanceConfigBean);
 	}
 
 	// @Bean
@@ -257,7 +258,7 @@ public class EurekaClientAutoConfiguration {
 		@Autowired
 		private ApplicationContext context;
 
-		@Autowired
+		@Autowired(required = false)
 		private AbstractDiscoveryClientOptionalArgs<?> optionalArgs;
 
 		@Bean(destroyMethod = "shutdown")
@@ -280,8 +281,11 @@ public class EurekaClientAutoConfiguration {
 		public EurekaRegistration eurekaRegistration(EurekaClient eurekaClient,
 				CloudEurekaInstanceConfig instanceConfig, ApplicationInfoManager applicationInfoManager,
 				@Autowired(required = false) ObjectProvider<HealthCheckHandler> healthCheckHandler) {
-			return EurekaRegistration.builder(instanceConfig).with(applicationInfoManager).with(eurekaClient)
-					.with(healthCheckHandler).build();
+			return EurekaRegistration.builder(instanceConfig)
+				.with(applicationInfoManager)
+				.with(eurekaClient)
+				.with(healthCheckHandler)
+				.build();
 		}
 
 	}
@@ -293,7 +297,7 @@ public class EurekaClientAutoConfiguration {
 		@Autowired
 		private ApplicationContext context;
 
-		@Autowired
+		@Autowired(required = false)
 		private AbstractDiscoveryClientOptionalArgs<?> optionalArgs;
 
 		@Bean(destroyMethod = "shutdown")
@@ -307,7 +311,7 @@ public class EurekaClientAutoConfiguration {
 			// problem
 			// when shutdown is called on the CloudEurekaClient where the
 			// ApplicationInfoManager bean is
-			// requested but wont be allowed because we are shutting down. To avoid this
+			// requested but won't be allowed because we are shutting down. To avoid this
 			// we use the
 			// object directly.
 			ApplicationInfoManager appManager;
@@ -339,8 +343,11 @@ public class EurekaClientAutoConfiguration {
 		public EurekaRegistration eurekaRegistration(EurekaClient eurekaClient,
 				CloudEurekaInstanceConfig instanceConfig, ApplicationInfoManager applicationInfoManager,
 				@Autowired(required = false) ObjectProvider<HealthCheckHandler> healthCheckHandler) {
-			return EurekaRegistration.builder(instanceConfig).with(applicationInfoManager).with(eurekaClient)
-					.with(healthCheckHandler).build();
+			return EurekaRegistration.builder(instanceConfig)
+				.with(applicationInfoManager)
+				.with(eurekaClient)
+				.with(healthCheckHandler)
+				.build();
 		}
 
 	}
@@ -392,6 +399,7 @@ public class EurekaClientAutoConfiguration {
 
 		@Bean
 		@ConditionalOnMissingBean
+		@ConditionalOnClass(ConditionalOnEnabledHealthIndicator.class)
 		@ConditionalOnEnabledHealthIndicator("eureka")
 		public EurekaHealthIndicator eurekaHealthIndicator(EurekaClient eurekaClient,
 				EurekaInstanceConfig instanceConfig, EurekaClientConfig clientConfig) {
@@ -410,75 +418,30 @@ class EurekaClientHints implements RuntimeHintsRegistrar {
 		if (!ClassUtils.isPresent("com.netflix.discovery.DiscoveryClient", classLoader)) {
 			return;
 		}
-		hints.reflection().registerType(TypeReference.of(DiscoveryClient.class),
-				hint -> hint.withMembers(MemberCategory.DECLARED_FIELDS, MemberCategory.INTROSPECT_DECLARED_METHODS))
-				.registerType(TypeReference.of(EurekaEndpoint.class),
-						hint -> hint.withMembers(MemberCategory.INVOKE_DECLARED_METHODS))
-				.registerType(TypeReference.of(DefaultEndpoint.class),
-						hint -> hint.withMembers(MemberCategory.DECLARED_FIELDS, MemberCategory.INVOKE_DECLARED_METHODS,
-								MemberCategory.INVOKE_DECLARED_CONSTRUCTORS))
-				.registerType(TypeReference.of(EurekaHttpClientDecorator.class),
-						hint -> hint.withMembers(MemberCategory.DECLARED_FIELDS,
-								MemberCategory.INTROSPECT_DECLARED_METHODS))
-				.registerType(TypeReference.of(EurekaHttpResponse.class),
-						hint -> hint.withMembers(MemberCategory.DECLARED_FIELDS, MemberCategory.INVOKE_DECLARED_METHODS,
-								MemberCategory.INVOKE_DECLARED_CONSTRUCTORS))
-				.registerType(TypeReference.of(EurekaHttpClientDecorator.RequestExecutor.class),
-						hint -> hint.withMembers(MemberCategory.INVOKE_DECLARED_METHODS))
-				.registerType(TypeReference.of(ApplicationInfoManager.class),
-						hint -> hint.withMembers(MemberCategory.INTROSPECT_DECLARED_METHODS))
-				.registerType(TypeReference.of(InstanceInfo.class),
-						hint -> hint.withMembers(MemberCategory.INVOKE_DECLARED_METHODS, MemberCategory.DECLARED_FIELDS,
-								MemberCategory.INVOKE_DECLARED_CONSTRUCTORS))
-				.registerType(TypeReference.of(InstanceInfo.ActionType.class),
-						hint -> hint.withMembers(MemberCategory.INTROSPECT_DECLARED_METHODS,
-								MemberCategory.DECLARED_FIELDS))
-				.registerType(TypeReference.of(InstanceInfo.PortWrapper.class),
-						hint -> hint.withMembers(MemberCategory.INVOKE_DECLARED_METHODS,
-								MemberCategory.INVOKE_DECLARED_CONSTRUCTORS, MemberCategory.DECLARED_FIELDS))
-				.registerType(TypeReference.of(LeaseInfo.class),
-						hint -> hint.withMembers(MemberCategory.INVOKE_DECLARED_METHODS,
-								MemberCategory.INVOKE_DECLARED_CONSTRUCTORS, MemberCategory.DECLARED_FIELDS))
-				.registerType(TypeReference.of(MyDataCenterInfo.class),
-						hint -> hint.withMembers(MemberCategory.INVOKE_DECLARED_METHODS,
-								MemberCategory.INVOKE_DECLARED_CONSTRUCTORS, MemberCategory.DECLARED_FIELDS))
-				.registerType(TypeReference.of(DataCenterInfo.class),
-						hint -> hint.withMembers(MemberCategory.INVOKE_DECLARED_METHODS,
-								MemberCategory.INVOKE_DECLARED_CONSTRUCTORS, MemberCategory.DECLARED_FIELDS))
-				.registerType(TypeReference.of(DataCenterInfo.Name.class),
-						hint -> hint.withMembers(MemberCategory.INVOKE_DECLARED_METHODS,
-								MemberCategory.INVOKE_DECLARED_CONSTRUCTORS, MemberCategory.DECLARED_FIELDS))
-				.registerType(TypeReference.of(EurekaClient.class),
-						hint -> hint.withMembers(MemberCategory.INVOKE_PUBLIC_METHODS))
-				.registerType(TypeReference.of(TimedSupervisorTask.class),
-						hint -> hint.withMembers(MemberCategory.INTROSPECT_DECLARED_METHODS,
-								MemberCategory.DECLARED_FIELDS))
-				.registerType(TypeReference.of(DataCenterTypeInfoResolver.class),
-						hint -> hint.withMembers(MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS))
-				.registerType(TypeReference.of(ApplicationsJacksonBuilder.class),
-						hint -> hint.withMembers(MemberCategory.INVOKE_DECLARED_METHODS,
-								MemberCategory.INVOKE_DECLARED_CONSTRUCTORS, MemberCategory.DECLARED_FIELDS))
-				.registerType(TypeReference.of(InstanceInfoJsonMixIn.class),
-						hint -> hint.withMembers(MemberCategory.INTROSPECT_DECLARED_METHODS,
-								MemberCategory.DECLARED_FIELDS))
-				.registerType(TypeReference.of(Application.class),
-						hint -> hint.withMembers(MemberCategory.INTROSPECT_DECLARED_METHODS,
-								MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS, MemberCategory.DECLARED_FIELDS))
-				.registerType(TypeReference.of(Applications.class),
-						hint -> hint.withMembers(MemberCategory.INTROSPECT_DECLARED_METHODS,
-								MemberCategory.DECLARED_FIELDS))
-				.registerType(TypeReference.of(AsyncResolver.class),
-						hint -> hint.withMembers(MemberCategory.INTROSPECT_DECLARED_METHODS,
-								MemberCategory.DECLARED_FIELDS))
-				.registerType(TypeReference.of(RetryableEurekaHttpClient.class),
-						hint -> hint.withMembers(MemberCategory.INTROSPECT_DECLARED_METHODS,
-								MemberCategory.DECLARED_FIELDS))
-				.registerType(TypeReference.of(SessionedEurekaHttpClient.class),
-						hint -> hint.withMembers(MemberCategory.INTROSPECT_DECLARED_METHODS,
-								MemberCategory.DECLARED_FIELDS))
-				.registerType(TypeReference.of(EurekaServiceInstance.class),
-						hint -> hint.withMembers(MemberCategory.INVOKE_DECLARED_METHODS,
-								MemberCategory.INVOKE_DECLARED_CONSTRUCTORS, MemberCategory.DECLARED_FIELDS));
+		hints.reflection()
+			.registerTypes(TypeReference.listOf(ApplicationInfoManager.class),
+					hint -> hint.withMembers(MemberCategory.INTROSPECT_DECLARED_METHODS))
+			.registerTypes(
+					TypeReference.listOf(DiscoveryClient.class, EurekaHttpClientDecorator.class,
+							InstanceInfo.ActionType.class, InstanceInfoJsonMixIn.class, SessionedEurekaHttpClient.class,
+							RetryableEurekaHttpClient.class, AsyncResolver.class, Applications.class,
+							TimedSupervisorTask.class),
+					hint -> hint.withMembers(MemberCategory.DECLARED_FIELDS,
+							MemberCategory.INTROSPECT_DECLARED_METHODS))
+			.registerTypes(
+					TypeReference.listOf(EurekaEndpoint.class, EurekaHttpClientDecorator.RequestExecutor.class,
+							EurekaClient.class, DiscoveryClient.class),
+					hint -> hint.withMembers(MemberCategory.INVOKE_DECLARED_METHODS))
+			.registerTypes(TypeReference.listOf(DataCenterTypeInfoResolver.class),
+					hint -> hint.withMembers(MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS))
+			.registerTypes(TypeReference.listOf(Application.class),
+					hint -> hint.withMembers(MemberCategory.DECLARED_FIELDS, MemberCategory.INTROSPECT_DECLARED_METHODS,
+							MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS))
+			.registerTypes(TypeReference.listOf(DefaultEndpoint.class, EurekaHttpResponse.class, InstanceInfo.class,
+					InstanceInfo.PortWrapper.class, LeaseInfo.class, MyDataCenterInfo.class, DataCenterInfo.class,
+					DataCenterInfo.Name.class, ApplicationsJacksonBuilder.class, EurekaServiceInstance.class),
+					hint -> hint.withMembers(MemberCategory.DECLARED_FIELDS, MemberCategory.INVOKE_DECLARED_METHODS,
+							MemberCategory.INVOKE_DECLARED_CONSTRUCTORS));
 	}
 
 }

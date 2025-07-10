@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2022 the original author or authors.
+ * Copyright 2013-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,15 +22,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.boot.web.server.test.LocalServerPort;
 import org.springframework.cloud.netflix.eureka.http.WebClientEurekaHttpClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,7 +42,7 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
  */
 @SpringBootTest(properties = { "spring.cloud.config.discovery.enabled=true", "eureka.client.enabled=true",
 		"spring.config.use-legacy-processing=true", "eureka.client.webclient.enabled=true",
-		"spring.codec.max-in-memory-size=310000" }, webEnvironment = RANDOM_PORT)
+		"spring.http.codecs.max-in-memory-size=310000" }, webEnvironment = RANDOM_PORT)
 class EurekaConfigServerBootstrapConfigurationWebClientIntegrationTests {
 
 	@LocalServerPort
@@ -53,10 +54,15 @@ class EurekaConfigServerBootstrapConfigurationWebClientIntegrationTests {
 	@Test
 	void webClientRespectsCodecProperties() {
 		WebClient webClient = eurekaHttpClient.getWebClient();
-		ClientResponse response = webClient.get().uri("http://localhost:" + port).exchange().block();
+		ResponseEntity<String> response = webClient.get()
+			.uri("http://localhost:" + port)
+			.retrieve()
+			.toEntity(String.class)
+			.block();
+
 		assertThat(response).isNotNull();
-		assertThat(response.statusCode()).isEqualTo(HttpStatus.OK);
-		assertThat(response.bodyToMono(String.class).block()).startsWith("....").hasSize(300000);
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+		assertThat(response.getBody()).startsWith("....").hasSize(300000);
 	}
 
 	@SpringBootConfiguration
@@ -71,8 +77,9 @@ class EurekaConfigServerBootstrapConfigurationWebClientIntegrationTests {
 
 		@Bean
 		public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-			http.authorizeHttpRequests().anyRequest().permitAll().and().csrf().disable();
-			return http.build();
+			return http.authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+				.csrf(AbstractHttpConfigurer::disable)
+				.build();
 		}
 
 	}
